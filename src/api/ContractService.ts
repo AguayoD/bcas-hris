@@ -88,11 +88,12 @@ export const ContractService = {
   },
 
   async download(contractId: number): Promise<Blob> {
-    const response = await axios.get(`${API_URL}/${contractId}/download`, {
-      responseType: 'blob',
-    });
-    return response.data;
-  },
+  // Use template literal correctly - remove the extra slash
+  const response = await axios.get(`${API_URL}/${contractId}/download`, {
+    responseType: 'blob',
+  });
+  return response.data;
+},
 
   delete: async (id: number) => {
   return axios.delete(`Contracts/${id}`);

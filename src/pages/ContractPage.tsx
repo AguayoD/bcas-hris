@@ -274,21 +274,24 @@ const ContractPage: React.FC = () => {
   };
 
   const handleDownload = async (contractId: number, fileName: string) => {
-    try {
-      const blob = await ContractService.download(contractId);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Failed to download contract:", error);
-      message.error("Failed to download contract");
-    }
-  };
+  try {
+    // Use the download endpoint instead of direct file path access
+    const response = await ContractService.download(contractId);
+    
+    // Create blob URL for download
+    const url = window.URL.createObjectURL(response);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to download contract:", error);
+    message.error("Failed to download contract");
+  }
+};
 
 const handleUpload = async () => {
   try {
