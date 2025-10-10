@@ -1,0 +1,111 @@
+.contract-page {
+  padding: 16px;
+}
+
+.contract-status-active {
+  background-color: #f6ffed;
+  border-color: #b7eb8f;
+  color: #52c41a;
+}
+
+.contract-status-expired {
+  background-color: #fff2f0;
+  border-color: #ffccc7;
+  color: #ff4d4f;
+}
+
+.contract-status-pending {
+  background-color: #fffbe6;
+  border-color: #ffe58f;
+  color: #faad14;
+}
+
+.upload-modal .ant-modal-body {
+  padding: 24px;
+}
+
+.contract-table {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+.contract-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-text {
+  display: inline;
+}
+
+.preview-modal .ant-modal-content {
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-modal .ant-modal-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .contract-page h2 {
+    font-size: 1.5rem;
+  }
+
+  .ant-table {
+    font-size: 14px;
+  }
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 8px;
+  }
+
+  .ant-modal {
+    width: 90% !important;
+    max-width: 100%;
+  }
+
+  .ant-upload-list-picture-card .ant-upload-list-item,
+  .ant-upload.ant-upload-select-picture-card {
+    width: 100px;
+    height: 100px;
+  }
+
+  .preview-modal {
+    top: 10px !important;
+  }
+  
+  .preview-modal .ant-modal-content {
+    height: 80vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .contract-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ant-btn {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .ant-tag {
+    font-size: 12px;
+    padding: 0 6px;
+  }
+
+  .action-text {
+    display: none;
+  }
+
+  .ant-modal-body {
+    padding: 16px !important;
+  }
+}

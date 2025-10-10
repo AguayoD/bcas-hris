@@ -1,0 +1,158 @@
+/* MainLayout.css */
+
+/* Base styles for the layout */
+.logo-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 64px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #00883e;
+}
+
+/* Custom theme color - Green for entire sidebar */
+.ant-layout-sider {
+  position: sticky;
+  top: 0;
+  background-color: #00883e !important;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.ant-menu-dark, 
+.ant-menu-dark .ant-menu-sub {
+  background-color: #00883e !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background-color: #006b32 !important;
+}
+
+.ant-menu-dark .ant-menu-item:hover {
+  background-color: #007a38 !important;
+}
+
+.ant-menu-dark .ant-menu-item-divider {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.ant-layout-header {
+  background: #f0f2f5 !important;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* Responsive layout adjustments */
+@media (max-width: 992px) {
+  .ant-layout {
+    flex-direction: column;
+  }
+  
+  .ant-layout-sider {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    flex: 0 0 auto !important;
+  }
+  
+  .ant-layout-sider-collapsed {
+    width: 100% !important;
+  }
+  
+  .ant-layout-header {
+    padding: 0 16px !important;
+  }
+  
+  .logo-container img {
+    width: 160px !important;
+    padding: 0 16px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .ant-menu-item {
+    padding: 0 16px !important;
+  }
+  
+  .ant-layout-content {
+    margin: 8px !important;
+    padding: 8px !important;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+  .ant-menu-item {
+    font-size: 12px;
+  }
+  
+  .ant-layout-header h3 {
+    font-size: 16px;
+    padding: 8px !important;
+  }
+}
+
+/* Smooth transitions */
+.ant-layout-sider {
+  transition: all 0.2s;
+}
+
+/* Fix for content area on mobile */
+.ant-layout-content {
+  min-height: calc(100vh - 64px - 16px);
+}
+
+/* Mobile menu toggle button */
+.mobile-menu-toggle {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+  background: #00883e;
+  color: white;
+  border: none;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+@media (max-width: 992px) {
+  .mobile-menu-toggle {
+    display: block;
+  }
+  
+  .ant-layout-sider {
+    position: fixed;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+  }
+  
+  .ant-layout-sider-collapsed {
+    transform: translateX(-100%);
+  }
+  
+  .ant-layout-sider.mobile-open {
+    transform: translateX(0);
+  }
+  
+  .ant-layout-content {
+    margin-left: 0 !important;
+  }
+}
+/* Custom trigger button color */
+.ant-layout-sider-trigger {
+  background: #01582a !important; /* Dark green color */
+  color: white !important;
+}
+
+/* Hover effect for the trigger */
+.ant-layout-sider-trigger:hover {
+  background: #014822 !important; /* Slightly darker green on hover */
+}
+
+/* Icon inside the trigger */
+.ant-layout-sider-trigger .anticon {
+  color: white !important;
+}

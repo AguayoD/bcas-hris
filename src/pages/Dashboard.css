@@ -1,0 +1,37 @@
+
+.dashboard-container {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+.dashboard-stat-card {
+  height: 100%;
+}
+
+.dashboard-calendar-card {
+  height: 100%;
+}
+
+.dashboard-notifications-card {
+  height: 100%;
+}
+
+.dashboard-notification-item {
+  padding: 12px 0;
+}
+
+.dashboard-notification-title {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.dashboard-notification-description {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+}
+
+.dashboard-notification-date {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 13px;
+}

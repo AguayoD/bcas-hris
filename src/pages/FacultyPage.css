@@ -1,0 +1,539 @@
+.faculty-page-container {
+  padding: 16px;
+}
+
+.faculty-card {
+  margin: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-add-container {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.faculty-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Form styles */
+.modal-form-container {
+  padding: 16px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Table actions */
+.actions-column {
+  white-space: nowrap;
+}
+
+.actions-space {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action-button {
+  padding: 0 4px;
+}
+
+/* Clickable rows */
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background-color: #f5f5f5;
+}
+
+/* Employee Details Modal */
+.employee-details-modal .ant-modal-header {
+  background-color: #f0f2f5;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.employee-details-modal .ant-modal-title {
+  color: #00883e;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+/* Horizontal layout styles */
+.horizontal-details-container {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.employee-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: #00883e;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin-right: 24px;
+}
+
+.horizontal-avatar {
+  width: 100px;
+  height: 100px;
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.horizontal-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+}
+
+.detail-row {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #555;
+  min-width: 120px;
+  margin-right: 8px;
+}
+
+.detail-value {
+  color: #333;
+  flex: 1;
+}
+
+.detail-value a {
+  color: #00883e;
+  text-decoration: none;
+}
+
+.detail-value a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .faculty-card {
+    margin: 12px;
+  }
+  
+  .form-row {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 992px) {
+  .faculty-card {
+    margin: 10px;
+  }
+  
+  .search-add-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .faculty-card {
+    margin: 8px;
+    padding: 12px;
+  }
+  
+  .faculty-table {
+    font-size: 14px;
+  }
+  
+  .modal-form-container {
+    padding: 12px;
+  }
+  
+  .form-item {
+    min-width: 100%;
+  }
+  
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 8px;
+  }
+
+  .horizontal-details-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .horizontal-details-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-label {
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .faculty-page-container {
+    padding: 8px;
+  }
+  
+  .faculty-card {
+    margin: 4px;
+    padding: 8px;
+  }
+  
+  .faculty-table {
+    font-size: 12px;
+  }
+  
+  .modal-form-container {
+    padding: 8px;
+  }
+  
+  .actions-space {
+    gap: 4px;
+  }
+  
+  .action-button {
+    padding: 0 2px;
+    font-size: 12px;
+  }
+  
+  .search-add-container .ant-input-search {
+    width: 100%;
+  }
+  
+  .add-button {
+    width: 100%;
+  }
+  
+  .ant-modal {
+    max-width: calc(100vw - 16px);
+    margin: 8px auto;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .detail-label {
+    margin-right: 0;
+  }
+}
+
+/* Print styles */
+@media print {
+  .faculty-card {
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .search-add-container,
+  .actions-column {
+    display: none;
+  }
+  
+  .faculty-table {
+    font-size: 12px;
+  }
+}
+/* Requirements | Records Tab Styles */
+.requirements-container {
+  padding: 20px 0;
+}
+
+.requirement-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.requirement-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background-color: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.requirement-item:hover {
+  background-color: #f0f0f0;
+  border-color: #1890ff;
+}
+
+.requirement-label {
+  font-weight: 500;
+  color: #333;
+  flex: 1;
+  margin-right: 16px;
+}
+
+.requirement-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-input {
+  display: none;
+}
+
+.browse-button {
+  min-width: 120px;
+  background-color: #fff;
+  border-color: #d9d9d9;
+  color: #333;
+}
+
+.browse-button:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.requirements-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.submit-requirements {
+  background-color: #00883e;
+  border-color: #00883e;
+  min-width: 200px;
+  height: 40px;
+  font-weight: 500;
+}
+
+.submit-requirements:hover {
+  background-color: #006a32;
+  border-color: #006a32;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .requirement-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .requirement-label {
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  
+  .requirement-control {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .browse-button {
+    width: 100%;
+  }
+}
+/* Salary Adjustment Tab Styles */
+.salary-adjustment-container {
+  padding: 20px 0;
+}
+
+.salary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: linear-gradient(135deg, #00883e, #00a854);
+  border-radius: 8px;
+  color: white;
+}
+
+.salary-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.current-salary {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.salary-amount {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.adjustment-form {
+  background: #fafafa;
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+  margin-bottom: 24px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-item {
+  flex: 1;
+}
+
+.form-item-full {
+  width: 100%;
+}
+
+/* Antd Form Item overrides for salary form */
+.adjustment-form .ant-form-item-label > label {
+  font-weight: 500;
+  color: #333;
+}
+
+.adjustment-form .ant-input,
+.adjustment-form .ant-picker,
+.adjustment-form .ant-select-selector {
+  border-radius: 6px;
+  border: 1px solid #d9d9d9;
+}
+
+.adjustment-form .ant-input:focus,
+.adjustment-form .ant-picker-focused,
+.adjustment-form .ant-select-focused .ant-select-selector {
+  border-color: #00883e;
+  box-shadow: 0 0 0 2px rgba(0, 136, 62, 0.2);
+}
+
+.file-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-hint {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+.salary-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.submit-salary-adjustment {
+  background-color: #00883e;
+  border-color: #00883e;
+  min-width: 200px;
+  height: 40px;
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.submit-salary-adjustment:hover {
+  background-color: #006a32;
+  border-color: #006a32;
+}
+
+.salary-history {
+  margin-top: 32px;
+}
+
+.history-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.history-placeholder {
+  text-align: center;
+  padding: 40px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  border: 1px dashed #d9d9d9;
+  color: #666;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .salary-header {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .adjustment-form {
+    padding: 16px;
+  }
+  
+  .salary-title {
+    font-size: 20px;
+  }
+  
+  .current-salary {
+    font-size: 14px;
+  }
+  
+  .salary-amount {
+    font-size: 16px;
+  }
+}
+
+/* File input styles (reuse from requirements) */
+.file-input {
+  display: none;
+}
+
+.browse-button {
+  background-color: #fff;
+  border-color: #d9d9d9;
+  color: #333;
+  border-radius: 6px;
+}
+
+.browse-button:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
