@@ -10,7 +10,6 @@ import {
   Typography,
   Avatar,
   Tag,
-  Button,
   Select,
 } from "antd";
 import {
@@ -20,7 +19,6 @@ import {
   FileTextOutlined as FileTextIconOutlined,
   BellOutlined,
   CalendarOutlined,
-  FileTextOutlined,
   InfoCircleOutlined,
   LineChartOutlined,
   CheckCircleOutlined,
@@ -1159,39 +1157,6 @@ const Dashboard: React.FC = () => {
                 </List.Item>
               )}
             />
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col span={24}>
-          <Card title="Quick Actions" className="quick-actions-card">
-            <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12}>
-                <Button 
-                  type="default"
-                  size="large"
-                  block
-                  icon={<UserOutlined />}
-                  onClick={() => window.location.href = '/faculty'}
-                  style={{ height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <div>View My Profile</div>
-                </Button>
-              </Col>
-              <Col xs={24} sm={12}>
-                <Button 
-                  type="default"
-                  size="large"
-                  block
-                  icon={<FileTextOutlined />}
-                  onClick={() => window.location.href = '/contracts'}
-                  style={{ height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <div>View My Contract</div>
-                </Button>
-              </Col>
-            </Row>
           </Card>
         </Col>
       </Row>
