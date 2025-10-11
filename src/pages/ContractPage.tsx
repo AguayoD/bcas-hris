@@ -9,7 +9,8 @@ import {
   DownloadOutlined,
   EditOutlined,
   SearchOutlined,
-  HistoryOutlined
+  HistoryOutlined,
+  DeleteOutlined
 } from "@ant-design/icons";
 import { 
   Button, 
@@ -29,7 +30,8 @@ import {
   Timeline,
   Card,
   Tag,
-  Divider
+  Divider,
+  Popconfirm
 } from "antd";
 import type { UploadFile, UploadProps } from "antd";
 import dayjs, { Dayjs } from 'dayjs';
@@ -94,9 +96,11 @@ const ContractPage: React.FC = () => {
   const [updateFileList, setUpdateFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [viewingContractHistory, setViewingContractHistory] = useState<EmployeeWithContracts | null>(null);
   const [selectedContractType, setSelectedContractType] = useState<string>('Regular');
   const [selectedUpdateContractType, setSelectedUpdateContractType] = useState<string>('');
+
   const [form] = Form.useForm<ContractFormData>();
   const [updateForm] = Form.useForm<ContractUpdateFormData>();
 
@@ -106,67 +110,67 @@ const ContractPage: React.FC = () => {
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        const [allEmployees, departmentData] = await Promise.all([
-          EmployeeService.getAll(),
-          DepartmentService.getAll()
-        ]);
-        
-        let employeeData: Employee[];
-        
-        if (isAdmin) {
-          employeeData = allEmployees;
-        } else if (isTeacher || isNonTeacher) {
-          employeeData = allEmployees.filter(emp => emp.employeeID === user?.employeeId);
-        } else {
-          employeeData = [];
-        }
-        
-        const employeesWithContracts = await Promise.all(
-          employeeData.map(async (emp) => {
-            try {
-              const employeeContracts = await ContractService.getByEmployeeId(emp.employeeID!);
-              
-              const employeeWithContracts: EmployeeWithContracts = {
-                ...emp,
-                contracts: employeeContracts,
-                contractStatus: ""
-              };
-              
-              return employeeWithContracts;
-            } catch (error) {
-              console.error(`Failed to fetch contracts for employee ${emp.employeeID}:`, error);
-              return {
-                ...emp,
-                contracts: [],
-              } as unknown as EmployeeWithContracts;
-            }
-          })
-        );
-        
-        setEmployees(employeesWithContracts);
-        setFilteredEmployees(employeesWithContracts);
-        setDepartments(
-          departmentData
-            .filter((d: any) => typeof d.departmentID === 'number')
-            .map((d: any) => ({
-              departmentID: d.departmentID as number,
-              departmentName: d.departmentName
-            }))
-        );
-      } catch (error) {
-        message.error("Failed to fetch data");
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
   }, [hasAccess, isAdmin, isTeacher, isNonTeacher, user?.employeeId]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      const [allEmployees, departmentData] = await Promise.all([
+        EmployeeService.getAll(),
+        DepartmentService.getAll()
+      ]);
+      
+      let employeeData: Employee[];
+      
+      if (isAdmin) {
+        employeeData = allEmployees;
+      } else if (isTeacher || isNonTeacher) {
+        employeeData = allEmployees.filter(emp => emp.employeeID === user?.employeeId);
+      } else {
+        employeeData = [];
+      }
+      
+      const employeesWithContracts = await Promise.all(
+        employeeData.map(async (emp) => {
+          try {
+            const employeeContracts = await ContractService.getByEmployeeId(emp.employeeID!);
+            
+            const employeeWithContracts: EmployeeWithContracts = {
+              ...emp,
+              contracts: employeeContracts,
+              contractStatus: ""
+            };
+            
+            return employeeWithContracts;
+          } catch (error) {
+            console.error(`Failed to fetch contracts for employee ${emp.employeeID}:`, error);
+            return {
+              ...emp,
+              contracts: [],
+            } as unknown as EmployeeWithContracts;
+          }
+        })
+      );
+      
+      setEmployees(employeesWithContracts);
+      setFilteredEmployees(employeesWithContracts);
+      setDepartments(
+        departmentData
+          .filter((d: any) => typeof d.departmentID === 'number')
+          .map((d: any) => ({
+            departmentID: d.departmentID as number,
+            departmentName: d.departmentName
+          }))
+      );
+    } catch (error) {
+      message.error("Failed to fetch data");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = (value: string) => {
     setSearchText(value);
@@ -232,132 +236,106 @@ const ContractPage: React.FC = () => {
     setFilteredEmployees(filtered);
   };
 
-  if (!hasAccess) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center',
-        height: '50vh',
-        flexDirection: 'column'
-      }}>
-        <Text type="danger" style={{ fontSize: '18px', marginBottom: '16px' }}>
-          Access Denied
-        </Text>
-        <Text type="secondary">
-          You don't have permission to view contract information.
-        </Text>
-      </div>
-    );
-  }
+  // Remove unused getBase64 function since we're using direct URLs now
 
-  const getBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-
-  const handlePreview = async (file: UploadFile) => {
-    if (!file.url && !file.preview && file.originFileObj) {
-      try {
-        file.preview = await getBase64(file.originFileObj);
-      } catch (error) {
-        console.error("Error generating preview:", error);
-        message.error("Failed to generate preview");
-        return;
-      }
+  const handlePreview = async (contract: any) => {
+    try {
+      // Use the download endpoint for preview to avoid path issues
+      const fileInfo = await ContractService.getFileUrl(contract.contractID!);
+      
+      setPreviewFile({
+        uid: contract.contractID?.toString() || '',
+        name: contract.fileName || 'contract',
+        status: 'done',
+        url: fileInfo.fileUrl, // This now uses the API download URL
+      } as UploadFile);
+      setPreviewOpen(true);
+    } catch (error) {
+      console.error("Failed to get file URL:", error);
+      message.error("Unable to preview contract file");
     }
-    setPreviewFile(file);
-    setPreviewOpen(true);
   };
 
   const handleDownload = async (contractId: number, fileName: string) => {
-  try {
-    // Use the download endpoint instead of direct file path access
-    const response = await ContractService.download(contractId);
-    
-    // Create blob URL for download
-    const url = window.URL.createObjectURL(response);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error("Failed to download contract:", error);
-    message.error("Failed to download contract");
-  }
-};
-
-const handleUpload = async () => {
-  try {
-    const values = await form.validateFields();
-    
-    if (editingEmployee && fileList.length > 0) {
-      setUploading(true);
+    try {
+      // Try direct download first (works across devices)
+      await ContractService.downloadDirect(contractId, fileName);
+      message.success("Download started");
+    } catch (error) {
+      console.error("Direct download failed, trying blob download:", error);
       
-      const file = fileList[0].originFileObj as File;
-      
-      // Create the contract data with consistent structure
-      const contractData: any = {
-        contractType: values.contractType,
-        contractStartDate: values.contractStartDate.format('YYYY-MM-DD'),
-        lastUpdatedBy: user?.employeeId || 0
-      };
-
-      // Always include contractEndDate, but set it appropriately based on contract type
-      if (values.contractType === 'Regular') {
-        // For Regular contracts, you might need to send null, empty string, or a default value
-        contractData.contractEndDate = ''; // or null depending on your API
-        // contractData.contractEndDate = '9999-12-31'; // alternative: use a far future date
-      } else if (values.contractEndDate) {
-        contractData.contractEndDate = values.contractEndDate.format('YYYY-MM-DD');
-      } else {
-        // For non-Regular contracts without end date, you might need to handle this case
-        contractData.contractEndDate = ''; // or throw an error
-      }
-
+      // Fallback to blob download
       try {
-        const createdContract = await ContractService.upload(
-          editingEmployee.employeeID!,
-          file,
-          contractData
-        );
+        const response = await ContractService.download(contractId);
         
-        message.success("Contract uploaded successfully");
-        
-        const updatedEmployees = employees.map(emp => {
-          if (emp.employeeID === editingEmployee.employeeID) {
-            const updatedContracts = [...emp.contracts, createdContract];
-            return {
-              ...emp,
-              contracts: updatedContracts
-            };
-          }
-          return emp;
-        });
-        
-        setEmployees(updatedEmployees);
-        setFilteredEmployees(updatedEmployees);
-        setEditingEmployee(null);
-        setFileList([]);
-        form.resetFields();
-      } catch (error) {
-        console.error("Failed to upload contract:", error);
-        message.error("Failed to upload contract");
-      } finally {
-        setUploading(false);
+        // Create blob URL for download
+        const url = window.URL.createObjectURL(response);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        message.success("Download started");
+      } catch (blobError) {
+        console.error("Blob download also failed:", blobError);
+        message.error("Failed to download contract");
       }
     }
-  } catch (error) {
-    console.error("Validation failed:", error);
-    message.error("Please fill in all required fields");
-  }
-};
+  };
+
+  const handleUpload = async () => {
+    try {
+      const values = await form.validateFields();
+      
+      if (editingEmployee && fileList.length > 0) {
+        setUploading(true);
+        
+        const file = fileList[0].originFileObj as File;
+        
+        // Create the contract data with consistent structure
+        const contractData: any = {
+          contractType: values.contractType,
+          contractStartDate: values.contractStartDate.format('YYYY-MM-DD'),
+          lastUpdatedBy: user?.employeeId || 0
+        };
+
+        // Always include contractEndDate, but set it appropriately based on contract type
+        if (values.contractType === 'Regular') {
+          contractData.contractEndDate = ''; // Empty for Regular contracts
+        } else if (values.contractEndDate) {
+          contractData.contractEndDate = values.contractEndDate.format('YYYY-MM-DD');
+        } else {
+          contractData.contractEndDate = '';
+        }
+
+        try {
+          // Remove unused variable by not assigning to a const
+          await ContractService.upload(
+            editingEmployee.employeeID!,
+            file,
+            contractData
+          );
+          
+          message.success("Contract uploaded successfully");
+          await fetchData(); // Refresh data
+          
+          setEditingEmployee(null);
+          setFileList([]);
+          form.resetFields();
+        } catch (error) {
+          console.error("Failed to upload contract:", error);
+          message.error("Failed to upload contract");
+        } finally {
+          setUploading(false);
+        }
+      }
+    } catch (error) {
+      console.error("Validation failed:", error);
+      message.error("Please fill in all required fields");
+    }
+  };
 
   const handleUpdate = async () => {
     try {
@@ -376,37 +354,30 @@ const handleUpload = async () => {
         if (values.contractStartDate) {
           updateData.contractStartDate = values.contractStartDate.format('YYYY-MM-DD');
         }
-        // Only add contractEndDate if it's not a Regular contract
-        if (values.contractType !== 'Regular' && values.contractEndDate) {
+        // Handle contract end date based on contract type
+        if (values.contractType === 'Regular') {
+          updateData.contractEndDate = ''; // Empty for Regular contracts
+        } else if (values.contractEndDate) {
           updateData.contractEndDate = values.contractEndDate.format('YYYY-MM-DD');
+        } else if (values.contractType && values.contractType !== 'Regular') {
+          // If changing to non-Regular without end date, keep existing or set to empty
+          updateData.contractEndDate = updatingContract.contractEndDate || '';
         }
+
         if (updateFileList.length > 0) {
           updateData.file = updateFileList[0].originFileObj as File;
         }
 
         try {
-          const updatedContract = await ContractService.update(
+          // Remove unused variable by not assigning to a const
+          await ContractService.update(
             updatingContract.contractID!,
             updateData
           );
           
           message.success("Contract updated successfully");
+          await fetchData(); // Refresh data
           
-          const updatedEmployees = employees.map(emp => {
-            const updatedContracts = emp.contracts.map(contract => 
-              contract.contractID === updatingContract.contractID 
-                ? { ...updatedContract, contractID: updatingContract.contractID }
-                : contract
-            );
-            
-            return {
-              ...emp,
-              contracts: updatedContracts
-            };
-          });
-          
-          setEmployees(updatedEmployees);
-          setFilteredEmployees(updatedEmployees);
           setUpdatingContract(null);
           setUpdateFileList([]);
           updateForm.resetFields();
@@ -420,6 +391,20 @@ const handleUpload = async () => {
     } catch (error) {
       console.error("Validation failed:", error);
       message.error("Please fill in all required fields");
+    }
+  };
+
+  const handleDeleteContract = async (contractId: number) => {
+    try {
+      setDeleting(true);
+      await ContractService.delete(contractId);
+      message.success("Contract deleted successfully");
+      await fetchData(); // Refresh data
+    } catch (error) {
+      console.error("Failed to delete contract:", error);
+      message.error("Failed to delete contract");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -467,6 +452,7 @@ const handleUpload = async () => {
       );
     }
 
+    // For other file types, show download option
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
         {getFileIcon(fileType)}
@@ -566,7 +552,6 @@ const handleUpload = async () => {
       title: 'Contract Documents',
       key: 'contractDocuments',
       render: (record: EmployeeWithContracts) => {
-        // Only show the most recent contract
         const latestContract = record.contracts.length > 0 
           ? record.contracts[record.contracts.length - 1] 
           : null;
@@ -578,12 +563,7 @@ const handleUpload = async () => {
                 <Button
                   type="link"
                   icon={<EyeOutlined />}
-                  onClick={() => handlePreview({
-                    uid: latestContract.contractID?.toString() || '',
-                    name: latestContract.fileName || 'contract',
-                    status: 'done',
-                    url: latestContract.filePath,
-                  } as UploadFile)}
+                  onClick={() => handlePreview(latestContract)}
                   size="small"
                 />
                 <Button
@@ -593,21 +573,38 @@ const handleUpload = async () => {
                   size="small"
                 />
                 {isAdmin && (
-                  <Button
-                    type="link"
-                    icon={<EditOutlined />}
-                    onClick={() => {
-                      setUpdatingContract(latestContract);
-                      setSelectedUpdateContractType(latestContract.contractType || '');
-                      updateForm.setFieldsValue({
-                        contractType: latestContract.contractType ?? undefined,
-                        contractStartDate: latestContract.contractStartDate ? dayjs(latestContract.contractStartDate) : undefined,
-                        contractEndDate: latestContract.contractEndDate ? dayjs(latestContract.contractEndDate) : undefined,
-                      });
-                      setUpdateFileList([]);
-                    }}
-                    size="small"
-                  />
+                  <>
+                    <Button
+                      type="link"
+                      icon={<EditOutlined />}
+                      onClick={() => {
+                        setUpdatingContract(latestContract);
+                        setSelectedUpdateContractType(latestContract.contractType || '');
+                        updateForm.setFieldsValue({
+                          contractType: latestContract.contractType ?? undefined,
+                          contractStartDate: latestContract.contractStartDate ? dayjs(latestContract.contractStartDate) : undefined,
+                          contractEndDate: latestContract.contractEndDate ? dayjs(latestContract.contractEndDate) : undefined,
+                        });
+                        setUpdateFileList([]);
+                      }}
+                      size="small"
+                    />
+                    <Popconfirm
+                      title="Delete Contract"
+                      description="Are you sure you want to delete this contract?"
+                      onConfirm={() => handleDeleteContract(latestContract.contractID!)}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button
+                        type="link"
+                        icon={<DeleteOutlined />}
+                        danger
+                        size="small"
+                        loading={deleting}
+                      />
+                    </Popconfirm>
+                  </>
                 )}
                 <Tag color="blue">{record.contracts.length} contract{record.contracts.length !== 1 ? 's' : ''}</Tag>
               </div>
@@ -654,6 +651,25 @@ const handleUpload = async () => {
     },
   ];
 
+  if (!hasAccess) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        height: '50vh',
+        flexDirection: 'column'
+      }}>
+        <Text type="danger" style={{ fontSize: '18px', marginBottom: '16px' }}>
+          Access Denied
+        </Text>
+        <Text type="secondary">
+          You don't have permission to view contract information.
+        </Text>
+      </div>
+    );
+  }
+
   return (
     <div className="contract-page">
       <div style={{ marginBottom: '16px' }}>
@@ -682,6 +698,7 @@ const handleUpload = async () => {
         pagination={{ pageSize: 10 }}
       />
 
+      {/* Upload Contract Modal */}
       <Modal
         open={!!editingEmployee}
         title={`Upload Contract for ${editingEmployee?.firstName} ${editingEmployee?.lastName}`}
@@ -745,7 +762,6 @@ const handleUpload = async () => {
               if (value === 'Regular') {
                 form.setFieldsValue({ contractEndDate: undefined });
               }
-              // Trigger validation to update required state
               form.validateFields(['contractEndDate']);
             }}>
               <Option value="Regular">Regular</Option>
@@ -755,7 +771,10 @@ const handleUpload = async () => {
               <Option value="Part-Time">Part-Time</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="Contract Document">
+          <Form.Item 
+            label="Contract Document"
+            rules={[{ required: true, message: 'Please select a file' }]}
+          >
             <Upload
               beforeUpload={beforeUpload}
               fileList={fileList}
@@ -768,6 +787,7 @@ const handleUpload = async () => {
         </Form>
       </Modal>
 
+      {/* Update Contract Modal */}
       <Modal
         open={!!updatingContract}
         title={`Update Contract`}
@@ -826,7 +846,6 @@ const handleUpload = async () => {
               if (value === 'Regular') {
                 updateForm.setFieldsValue({ contractEndDate: undefined });
               }
-              // Trigger validation to update required state
               updateForm.validateFields(['contractEndDate']);
             }}>
               <Option value="Regular">Regular</Option>
@@ -836,7 +855,7 @@ const handleUpload = async () => {
               <Option value="Part-Time">Part-Time</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="Contract Document">
+          <Form.Item label="Contract Document (Optional)">
             <Upload
               beforeUpload={beforeUpload}
               fileList={updateFileList}
@@ -845,10 +864,12 @@ const handleUpload = async () => {
             >
               <Button icon={<UploadOutlined />}>Select File</Button>
             </Upload>
+            <Text type="secondary">Leave empty to keep current file</Text>
           </Form.Item>
         </Form>
       </Modal>
 
+      {/* File Preview Modal */}
       <Modal
         open={previewOpen}
         title={previewFile?.name || 'Contract Preview'}
@@ -862,6 +883,7 @@ const handleUpload = async () => {
         {renderFilePreview()}
       </Modal>
 
+      {/* Contract History Modal */}
       <Modal
         open={!!viewingContractHistory}
         title={
@@ -957,12 +979,7 @@ const handleUpload = async () => {
                               <Button
                                 type="link"
                                 icon={<EyeOutlined />}
-                                onClick={() => handlePreview({
-                                  uid: contract.contractID?.toString() || '',
-                                  name: contract.fileName || 'contract',
-                                  status: 'done',
-                                  url: contract.filePath,
-                                } as UploadFile)}
+                                onClick={() => handlePreview(contract)}
                                 size="small"
                               >
                                 View
@@ -976,24 +993,43 @@ const handleUpload = async () => {
                                 Download
                               </Button>
                               {isAdmin && (
-                                <Button
-                                  type="link"
-                                  icon={<EditOutlined />}
-                                  onClick={() => {
-                                    setUpdatingContract(contract);
-                                    setSelectedUpdateContractType(contract.contractType || '');
-                                    updateForm.setFieldsValue({
-                                      contractType: contract.contractType ?? undefined,
-                                      contractStartDate: contract.contractStartDate ? dayjs(contract.contractStartDate) : undefined,
-                                      contractEndDate: contract.contractEndDate ? dayjs(contract.contractEndDate) : undefined,
-                                    });
-                                    setUpdateFileList([]);
-                                    setViewingContractHistory(null);
-                                  }}
-                                  size="small"
-                                >
-                                  Edit
-                                </Button>
+                                <>
+                                  <Button
+                                    type="link"
+                                    icon={<EditOutlined />}
+                                    onClick={() => {
+                                      setUpdatingContract(contract);
+                                      setSelectedUpdateContractType(contract.contractType || '');
+                                      updateForm.setFieldsValue({
+                                        contractType: contract.contractType ?? undefined,
+                                        contractStartDate: contract.contractStartDate ? dayjs(contract.contractStartDate) : undefined,
+                                        contractEndDate: contract.contractEndDate ? dayjs(contract.contractEndDate) : undefined,
+                                      });
+                                      setUpdateFileList([]);
+                                      setViewingContractHistory(null);
+                                    }}
+                                    size="small"
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Popconfirm
+                                    title="Delete Contract"
+                                    description="Are you sure you want to delete this contract?"
+                                    onConfirm={() => handleDeleteContract(contract.contractID!)}
+                                    okText="Yes"
+                                    cancelText="No"
+                                  >
+                                    <Button
+                                      type="link"
+                                      icon={<DeleteOutlined />}
+                                      danger
+                                      size="small"
+                                      loading={deleting}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </Popconfirm>
+                                </>
                               )}
                             </Space>
                           </div>
