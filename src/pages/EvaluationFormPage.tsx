@@ -83,7 +83,7 @@ const EvaluationFormPage = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [evaluatedEmployees, setEvaluatedEmployees] = useState<number[]>([]);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedDepartmentID, setSelectedDepartmentID] = useState<number | null>(null);
   const [selectedEmployeeID, setSelectedEmployeeID] = useState<number | null>(null);
   const [comments, setComments] = useState("");
@@ -96,12 +96,27 @@ const EvaluationFormPage = () => {
   // A map from subGroupID → list of items
   const [itemsBySubGroup, setItemsBySubGroup] = useState<Record<number, Item[]>>({});
 
-  // Filtered employees based on selected department AND excluding evaluated employees
+  // Function to count evaluations for a specific employee
+  const getEvaluationCount = (employeeID: number) => {
+    return evaluations.filter(evalItem => evalItem.employeeID === employeeID).length;
+  };
+
+  // Filtered employees based on selected department AND evaluation count
   const filteredEmployees = selectedDepartmentID
-    ? employees.filter(emp => 
-        emp.departmentID === selectedDepartmentID && 
-        !evaluatedEmployees.includes(emp.employeeID)
-      )
+    ? employees.filter(emp => {
+        if (emp.departmentID === selectedDepartmentID) {
+          const evaluationCount = getEvaluationCount(emp.employeeID);
+          const departmentName = departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase();
+          
+          // For Mix department, allow up to 3 evaluations
+          if (departmentName === 'mix') {
+            return evaluationCount < 3;
+          }
+          // For other departments, allow only 1 evaluation
+          return evaluationCount === 0;
+        }
+        return false;
+      })
     : [];
 
   useEffect(() => {
@@ -155,9 +170,8 @@ const EvaluationFormPage = () => {
       const employeesData = Array.isArray(employeesRes.data) ? employeesRes.data : employeesRes.data.result || [];
       setEmployees(employeesData);
 
-      // Extract evaluated employee IDs from evaluations
-      const evaluatedEmployeeIds = evaluationsRes.data.map((evaluation: any) => evaluation.employeeID);
-      setEvaluatedEmployees(evaluatedEmployeeIds);
+      // Store full evaluations instead of just IDs
+      setEvaluations(evaluationsRes.data);
 
       // Fetch items for all subgroups
       const allSubgroups = groupsData.flatMap((g) => g.subGroups);
@@ -232,11 +246,11 @@ const EvaluationFormPage = () => {
 
     axios
       .post("/Evaluations", evaluation)
-      .then(() => {
+      .then((response) => {
         message.success("Evaluation submitted successfully.");
         
-        // Add the evaluated employee to the evaluatedEmployees list
-        setEvaluatedEmployees(prev => [...prev, selectedEmployeeID]);
+        // Add the new evaluation to evaluations state
+        setEvaluations(prev => [...prev, response.data]);
         
         // Reset form
         setSelectedDepartmentID(null);
@@ -541,12 +555,18 @@ const EvaluationFormPage = () => {
                   {selectedDepartmentID ? "-- Select an employee --" : "-- Select department first --"}
                 </option>
                 {filteredEmployees.length > 0 ? (
-                  filteredEmployees.map((emp) => (
-                    <option key={emp.employeeID} value={emp.employeeID}>
-                      {emp.firstName} {emp.lastName}
-                      {emp.departmentName && ` (${emp.departmentName})`}
-                    </option>
-                  ))
+                  filteredEmployees.map((emp) => {
+                    const evaluationCount = getEvaluationCount(emp.employeeID);
+                    const isMixDepartment = departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase() === 'mix';
+                    
+                    return (
+                      <option key={emp.employeeID} value={emp.employeeID}>
+                        {emp.firstName} {emp.lastName}
+                        {emp.departmentName && ` (${emp.departmentName})`}
+                        {isMixDepartment && evaluationCount > 0 && ` - Evaluated ${evaluationCount}/3 times`}
+                      </option>
+                    );
+                  })
                 ) : (
                   <option value="" disabled>
                     {selectedDepartmentID ? "No available employees to evaluate" : "-- Select department first --"}
@@ -555,7 +575,9 @@ const EvaluationFormPage = () => {
               </select>
               {selectedDepartmentID && filteredEmployees.length === 0 && (
                 <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
-                  All employees in this department have already been evaluated.
+                  {departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase() === 'mix' 
+                    ? "All employees in this department have already been evaluated 3 times."
+                    : "All employees in this department have already been evaluated."}
                 </div>
               )}
             </div>
