@@ -736,18 +736,23 @@ const Dashboard: React.FC = () => {
             </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic
-              title="Days Until Contract End"
-              value={employeeStats.daysUntilContractEnd}
-              prefix={<CalendarOutlined />}
-              valueStyle={{ 
-                color: employeeStats.daysUntilContractEnd <= 30 ? '#ff4d4f' : '#3f8600'
-              }}
-            />
-          </Card>
-        </Col>
+        
+        {/* Conditionally render Days Until Contract End only if contract type is NOT Regular */}
+        {employeeStats.contractType !== 'Regular' && (
+          <Col xs={24} sm={12} md={6}>
+            <Card className="dashboard-stat-card">
+              <Statistic
+                title="Days Until Contract End"
+                value={employeeStats.daysUntilContractEnd}
+                prefix={<CalendarOutlined />}
+                valueStyle={{ 
+                  color: employeeStats.daysUntilContractEnd <= 30 ? '#ff4d4f' : '#3f8600'
+                }}
+              />
+            </Card>
+          </Col>
+        )}
+        
         <Col xs={24} sm={12} md={6}>
           <Card className="dashboard-stat-card">
             <div style={{ textAlign: 'center' }}>
@@ -798,12 +803,15 @@ const Dashboard: React.FC = () => {
                     type: contract.contractType,
                   }))}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
+                 <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis label={{ value: 'Duration (months)', angle: -90, position: 'insideLeft' }} />
                   <Tooltip 
                     content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
+                        const contractType = payload[0].payload.type;
+                        const isRegularContract = contractType === 'Regular';
+                        
                         return (
                           <div style={{ 
                             background: 'white', 
@@ -812,10 +820,14 @@ const Dashboard: React.FC = () => {
                             borderRadius: '4px'
                           }}>
                             <p><strong>{payload[0].payload.name}</strong></p>
-                            <p>Type: {payload[0].payload.type}</p>
+                            <p>Type: {contractType}</p>
                             <p>Start: {payload[0].payload.startDate}</p>
-                            <p>End: {payload[0].payload.endDate}</p>
-                            <p>Duration: {payload[0].value} months</p>
+                            {!isRegularContract && (
+                              <>
+                                <p>End: {payload[0].payload.endDate}</p>
+                                <p>Duration: {payload[0].value} months</p>
+                              </>
+                            )}
                           </div>
                         );
                       }
