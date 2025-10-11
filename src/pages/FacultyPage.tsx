@@ -155,7 +155,8 @@ const FacultyPage: React.FC = () => {
   const [departments, setDepartments] = useState<DepartmentTypes[]>([]);
   const [positions, setPositions] = useState<PositionTypes[]>([]);
   const { user } = useAuth();
-  const isAdmin = user?.roleId === ROLES.Admin || user?.roleId === ROLES.Coordinator;
+  const isAdmin = user?.roleId === ROLES.Admin;
+  const isCoordinator = user?.roleId === ROLES.Coordinator;
   const tableRef = useRef<HTMLDivElement>(null);
 
 const formatEmployeeId = (
@@ -463,7 +464,7 @@ const getEnhancedFacultyData = () => {
           PositionService.getAll(),
         ]);
 
-        const employees = isAdmin
+        const employees = isAdmin || isCoordinator
           ? allEmployees
           : allEmployees.filter(
               (emp) => emp.employeeID === (user?.employeeId || 0)

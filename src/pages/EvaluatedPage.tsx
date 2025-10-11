@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Spin, Typography, Button, message, Select } from 'antd';
+import { Table, Spin, Typography, Button, message, Select, Modal } from 'antd';
 import { RedoOutlined, PrinterOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import axios from '../api/_axiosInstance';
@@ -7,6 +7,18 @@ import moment from 'moment';
 
 const { Title } = Typography;
 const { Option } = Select;
+
+interface SubGroupAnswer {
+  subGroupID: number;
+  subGroupName: string;
+  scoreValue: number;
+  scoreLabel: string;
+}
+
+interface EvaluationAnswerResponse {
+  evaluatorName: string;
+  answers: SubGroupAnswer[];
+}
 
 interface EvalWithNames {
   evaluationID: number;
@@ -25,6 +37,10 @@ const EvaluatedPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [resetting, setResetting] = useState<boolean>(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedEvaluation, setSelectedEvaluation] = useState<EvalWithNames | null>(null);
+  const [evaluationAnswers, setEvaluationAnswers] = useState<SubGroupAnswer[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     fetchEvaluations();
@@ -246,6 +262,28 @@ const EvaluatedPage: React.FC = () => {
     printWindow.document.close();
   };
 
+  const showModal = async (evaluation: EvalWithNames) => {
+    setSelectedEvaluation(evaluation);
+    setIsModalVisible(true);
+    setModalLoading(true);
+
+    try {
+      const res = await axios.get<EvaluationAnswerResponse>(`/Evaluations/${evaluation.evaluationID}/answers`);
+      setEvaluationAnswers(res.data.answers);
+    } catch (error) {
+      console.error('Error fetching evaluation answers:', error);
+      setEvaluationAnswers([]);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSelectedEvaluation(null);
+    setEvaluationAnswers([]);
+  };
+
   const columns: ColumnsType<EvalWithNames> = [
     {
       title: 'Employee',
@@ -277,6 +315,15 @@ const EvaluatedPage: React.FC = () => {
       sorter: (a, b) => a.finalScore - b.finalScore,
       defaultSortOrder: 'descend',
     },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_, record) => (
+        <Button type="link" onClick={() => showModal(record)}>
+          View Details
+        </Button>
+      ),
+    }
   ];
 
   return (
@@ -323,6 +370,52 @@ const EvaluatedPage: React.FC = () => {
           sortDirections={['descend', 'ascend']}
         />
       </Spin>
+
+      <Modal
+        title="Evaluation Answers"
+        open={isModalVisible}
+        onCancel={handleModalClose}
+        footer={null}
+        width={700}
+      >
+        {selectedEvaluation && (
+          <>
+            <p><strong>Evaluator:</strong> {selectedEvaluation.evaluatorName}</p>
+            <p><strong>Employee Evaluated:</strong> {selectedEvaluation.employeeName}</p>
+            <p><strong>Department:</strong> {selectedEvaluation.departmentName || 'N/A'}</p>
+            <p><strong>Final Score:</strong> {selectedEvaluation.finalScore.toFixed(2)}</p>
+            <p><strong>Evaluation Date:</strong> {new Date(selectedEvaluation.evaluationDate).toLocaleDateString()}</p>
+
+            <Spin spinning={modalLoading}>
+              <Table<SubGroupAnswer>
+                rowKey="subGroupID"
+                dataSource={evaluationAnswers}
+                pagination={false}
+                bordered
+                size="small"
+                columns={[
+                  {
+                    title: 'SubGroup',
+                    dataIndex: 'subGroupName',
+                    key: 'subGroupName',
+                  },
+                  {
+                    title: 'Score',
+                    dataIndex: 'scoreValue',
+                    key: 'scoreValue',
+                    render: (value) => <strong>{value}</strong>,
+                  },
+                  {
+                    title: 'Label',
+                    dataIndex: 'scoreLabel',
+                    key: 'scoreLabel',
+                  },
+                ]}
+              />
+            </Spin>
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

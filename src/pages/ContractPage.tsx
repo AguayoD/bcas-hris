@@ -77,8 +77,8 @@ const getFileIcon = (fileType?: string) => {
 
 const ContractPage: React.FC = () => {
   const { user } = useAuth();
-  const isAdmin = user?.roleId === ROLES.Admin || user?.roleId === ROLES.Coordinator;
-  const isTeacher = user?.roleId === ROLES.Teaching;
+  const isAdmin = user?.roleId === ROLES.Admin 
+  const isTeacher = user?.roleId === ROLES.Teaching || user?.roleId === ROLES.Coordinator;
   const isNonTeacher = user?.roleId === ROLES.NonTeaching;
   
   const hasAccess = isAdmin || isTeacher || isNonTeacher;

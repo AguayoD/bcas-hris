@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button, message } from "antd";
+import { useAuth } from "../types/useAuth";
+import { ROLES } from "../types/auth";
 
 interface DocType {
   id: string;
@@ -37,6 +39,12 @@ interface RequirementsProps {
 const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
   const [filesMap, setFilesMap] = useState<{ [key: string]: FileList | null }>({});
   const [uploadedFiles, setUploadedFiles] = useState<{ [docType: string]: UploadedFile }>({});
+  const { user } = useAuth();
+  
+  // Check if current user has permission to upload requirements
+  const isAdmin = user?.roleId === ROLES.Admin;
+  const isCurrentEmployee = user?.employeeId === employeeId;
+  const canUploadRequirements = isAdmin || isCurrentEmployee;
 
   // Fetch existing uploaded files for the employee on load or employeeId change
   useEffect(() => {
@@ -69,6 +77,11 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
   }, [employeeId]);
 
   const onFileChange = (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canUploadRequirements) {
+      message.warning("You don't have permission to upload requirements");
+      return;
+    }
+    
     setFilesMap((prev) => ({
       ...prev,
       [docId]: e.target.files,
@@ -79,6 +92,11 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
   const handleSubmit = async () => {
     if (!employeeId) {
       message.error("Employee ID is missing");
+      return;
+    }
+
+    if (!canUploadRequirements) {
+      message.warning("You don't have permission to upload requirements");
       return;
     }
 
@@ -131,7 +149,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
     }
   };
 
-  // Download file handler
+  // Download file handler - allow everyone to download
   const handleDownload = (fileId: number, fileName: string) => {
     fetch(`${API_BASE_URL}/${fileId}`)
       .then((res) => {
@@ -157,6 +175,20 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
 
   return (
     <div className="requirements-container">
+      {!canUploadRequirements && (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '20px', 
+          backgroundColor: '#f5f5f5', 
+          borderRadius: '4px',
+          marginBottom: '16px'
+        }}>
+          <p style={{ color: '#999', margin: 0 }}>
+            You can only view requirements. Only admins and the employee themselves can upload requirements.
+          </p>
+        </div>
+      )}
+      
       <div className="requirement-section">
         {DOCUMENTS.map((doc) => {
           const uploadedFile = uploadedFiles[doc.label];
@@ -170,22 +202,33 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
                 className="requirement-control"
                 style={{ display: "flex", alignItems: "center", gap: 8 }}
               >
-                <input
-                  type="file"
-                  id={doc.id}
-                  style={{ display: "none" }}
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  multiple={doc.multiple || false}
-                  onChange={(e) => onFileChange(doc.id, e)}
-                />
-                <Button type="default" onClick={() => document.getElementById(doc.id)?.click()}>
-                  Select File{doc.multiple ? "(s)" : ""}
-                </Button>
-                <div>
-                  {filesMap[doc.id]
-                    ? `${filesMap[doc.id]!.length} file${filesMap[doc.id]!.length > 1 ? "s" : ""} selected`
-                    : "No file selected"}
-                </div>
+                {canUploadRequirements ? (
+                  <>
+                    <input
+                      type="file"
+                      id={doc.id}
+                      style={{ display: "none" }}
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      multiple={doc.multiple || false}
+                      onChange={(e) => onFileChange(doc.id, e)}
+                    />
+                    <Button 
+                      type="default" 
+                      onClick={() => document.getElementById(doc.id)?.click()}
+                    >
+                      Select File{doc.multiple ? "(s)" : ""}
+                    </Button>
+                    <div>
+                      {filesMap[doc.id]
+                        ? `${filesMap[doc.id]!.length} file${filesMap[doc.id]!.length > 1 ? "s" : ""} selected`
+                        : "No file selected"}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: '#999' }}>
+                    No permission to upload
+                  </div>
+                )}
 
                 {uploadedFile && (
                   <Button
@@ -202,11 +245,13 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
         })}
       </div>
 
-      <div className="requirements-actions" style={{ marginTop: 24 }}>
-        <Button type="primary" onClick={handleSubmit}>
-          Submit All Requirements
-        </Button>
-      </div>
+      {canUploadRequirements && (
+        <div className="requirements-actions" style={{ marginTop: 24 }}>
+          <Button type="primary" onClick={handleSubmit}>
+            Submit All Requirements
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

@@ -24,9 +24,10 @@ const MainLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   
-  // Check if user is admin
-  const isAdmin = user?.roleId === ROLES.Admin || user?.roleId === ROLES.Coordinator;
-  
+  // Check if user is admin or coordinator
+  const isAdmin = user?.roleId === ROLES.Admin;
+  const isCoordinator = user?.roleId === ROLES.Coordinator;
+
   useEffect(() => {
     const handleResize = () => {
       setMobileView(window.innerWidth <= 992);
@@ -98,17 +99,20 @@ const MainLayout = () => {
         icon: <UserOutlined />,
         label: "User Management",
       },
+    ];
 
-                {
-    key: "evaluationForm",
-    icon: <FolderOutlined />,
-    label: "Evaluation Form",
-  },
-            {
-    key: "evaluatedPage",
-    icon: <FolderOutlined />,
-    label: "Evaluated Employees",
-  },
+    // Items available for both Admin and Coordinator
+    const evaluationItems = [
+      {
+        key: "evaluationForm",
+        icon: <FolderOutlined />,
+        label: "Evaluation Form",
+      },
+      {
+        key: "evaluatedPage",
+        icon: <FolderOutlined />,
+        label: "Evaluated Employees",
+      },
     ];
 
     const commonItems = [
@@ -117,8 +121,6 @@ const MainLayout = () => {
         icon: <FolderOutlined />,
         label: "Contracts",
       },
-
-  
     ];
 
     const logoutItem = {
@@ -130,16 +132,20 @@ const MainLayout = () => {
     // Build menu items array based on user role
     let menuItems = [...baseItems];
     
+    // Add admin-only items if user is admin
     if (isAdmin) {
       menuItems = [...menuItems, ...adminItems];
     }
     
-    menuItems = [...menuItems, ...commonItems];
-    
-    if (isAdmin) {
-      menuItems = [...menuItems,];
+    // Add evaluation items for both admin and coordinator
+    if (isAdmin || isCoordinator) {
+      menuItems = [...menuItems, ...evaluationItems];
     }
     
+    // Add common items
+    menuItems = [...menuItems, ...commonItems];
+    
+    // Add logout item
     menuItems.push(logoutItem);
 
     return menuItems;
