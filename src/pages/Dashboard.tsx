@@ -23,6 +23,8 @@ import {
   FileTextOutlined,
   InfoCircleOutlined,
   LineChartOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import {
   LineChart,
@@ -66,12 +68,24 @@ const Dashboard: React.FC = () => {
   const [currentEmployee, setCurrentEmployee] = useState<EmployeeWithContracts | null>(null);
   const [chartView, setChartView] = useState<'hire' | 'contract' | 'evaluation'>('hire');
   const [hiringView, setHiringView] = useState<'monthly' | 'yearly'>('monthly');
+  const [employeeEvaluation, setEmployeeEvaluation] = useState<any>(null);
   
   const { user } = useAuth();
   const isAdmin = user?.roleId === ROLES.Admin || user?.roleId === ROLES.Coordinator;
 
   useEffect(() => {
     fetchData();
+    
+    // Listen for evaluation reset events to refresh data
+    const handleEvaluationsReset = () => {
+      fetchData();
+    };
+    
+    window.addEventListener('evaluationsReset', handleEvaluationsReset);
+    
+    return () => {
+      window.removeEventListener('evaluationsReset', handleEvaluationsReset);
+    };
   }, [isAdmin, user?.employeeId]);
 
   const fetchData = async () => {
@@ -116,7 +130,15 @@ const Dashboard: React.FC = () => {
       if (!isAdmin && user?.employeeId) {
         const currentEmp = employeesWithContracts.find(emp => emp.employeeID === user.employeeId);
         setCurrentEmployee(currentEmp || null);
+        
+        // Find evaluation for current employee
+        const employeeEval = evaluationsData.data.find((evalItem: any) => 
+          evalItem.employeeID === user.employeeId
+        );
+        setEmployeeEvaluation(employeeEval || null);
+        
         console.log('Current employee found:', currentEmp);
+        console.log('Employee evaluation:', employeeEval);
       }
     } catch (error) {
       message.error("Failed to load data");
@@ -213,6 +235,9 @@ const Dashboard: React.FC = () => {
         hireDate: 'Unknown',
         employeeName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'Employee',
         contractType: 'Unknown',
+        isEvaluated: false,
+        evaluationScore: null,
+        evaluationDate: null,
       };
     }
 
@@ -245,6 +270,9 @@ const Dashboard: React.FC = () => {
       hireDate: hireDate.format('MMMM D, YYYY'),
       employeeName: `${currentEmployee.firstName} ${currentEmployee.lastName}`,
       contractType,
+      isEvaluated: !!employeeEvaluation,
+      evaluationScore: employeeEvaluation?.finalScore || null,
+      evaluationDate: employeeEvaluation?.evaluationDate || null,
     };
   };
 
@@ -355,16 +383,33 @@ const Dashboard: React.FC = () => {
       title: "Welcome to BCAS HRMS",
       description: "Access your personal information and contracts here",
       type: "info",
+      icon: <InfoCircleOutlined />,
     },
+    // Evaluation notification
+    ...(employeeStats.isEvaluated ? [{
+      title: "Evaluation Completed",
+      description: `Your performance evaluation has been completed with a score of ${employeeStats.evaluationScore?.toFixed(2) || 'N/A'}`,
+      type: "success",
+      icon: <CheckCircleOutlined />,
+      date: employeeStats.evaluationDate ? moment(employeeStats.evaluationDate).format("MMMM D, YYYY") : null,
+    }] : [{
+      title: "Evaluation Pending",
+      description: "Your performance evaluation is currently pending",
+      type: "info",
+      icon: <ClockCircleOutlined />,
+    }]),
+    // Contract notifications
     ...(employeeStats.daysUntilContractEnd <= 30 && employeeStats.daysUntilContractEnd > 0 ? [{
       title: "Contract Renewal Reminder",
       description: `Your contract expires in ${employeeStats.daysUntilContractEnd} days`,
       type: "warning",
+      icon: <CalendarOutlined />,
     }] : []),
     ...(employeeStats.contractStatus === 'Expired' ? [{
       title: "Contract Expired",
       description: "Please contact HR regarding contract renewal",
       type: "error",
+      icon: <CalendarOutlined />,
     }] : []),
   ];
 
@@ -671,7 +716,7 @@ const Dashboard: React.FC = () => {
       </Row>
 
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col xs={24} sm={12} md={8}>
+        <Col xs={24} sm={12} md={6}>
           <Card className="dashboard-stat-card">
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: '#8c8c8c', fontSize: '14px', marginBottom: '16px' }}>
@@ -691,7 +736,7 @@ const Dashboard: React.FC = () => {
             </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={8}>
+        <Col xs={24} sm={12} md={6}>
           <Card className="dashboard-stat-card">
             <Statistic
               title="Days Until Contract End"
@@ -703,7 +748,7 @@ const Dashboard: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={8}>
+        <Col xs={24} sm={12} md={6}>
           <Card className="dashboard-stat-card">
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: '#8c8c8c', fontSize: '14px', marginBottom: '8px' }}>
@@ -715,6 +760,22 @@ const Dashboard: React.FC = () => {
                   {employeeStats.hireDate}
                 </span>
               </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: '#8c8c8c', fontSize: '14px', marginBottom: '16px' }}>
+                Evaluation Status
+              </div>
+              <Tag 
+                color={employeeStats.isEvaluated ? 'green' : 'blue'}
+                style={{ fontSize: '14px', padding: '4px 8px' }}
+                icon={employeeStats.isEvaluated ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
+              >
+                {employeeStats.isEvaluated ? `Score: ${employeeStats.evaluationScore?.toFixed(2)}` : 'Pending'}
+              </Tag>
             </div>
           </Card>
         </Col>
@@ -783,13 +844,22 @@ const Dashboard: React.FC = () => {
               renderItem={(item) => (
                 <List.Item className="dashboard-notification-item">
                   <List.Item.Meta
-                    avatar={<InfoCircleOutlined style={{ 
-                      color: item.type === 'warning' ? '#faad14' : 
-                             item.type === 'error' ? '#ff4d4f' : '#1890ff'
-                    }} />}
+                    avatar={React.cloneElement(item.icon, { 
+                      style: { 
+                        color: item.type === 'warning' ? '#faad14' : 
+                               item.type === 'error' ? '#ff4d4f' : 
+                               item.type === 'success' ? '#52c41a' : '#1890ff',
+                        fontSize: '16px'
+                      }
+                    })}
                     title={<div className="dashboard-notification-title">{item.title}</div>}
                     description={
-                      <div className="dashboard-notification-description">{item.description}</div>
+                      <div>
+                        <div className="dashboard-notification-description">{item.description}</div>
+                        {item.date && (
+                          <div className="dashboard-notification-date">Date: {item.date}</div>
+                        )}
+                      </div>
                     }
                   />
                 </List.Item>

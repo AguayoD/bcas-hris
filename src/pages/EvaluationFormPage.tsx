@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "../api/_axiosInstance";
+import DepartmentService from "../api/DepartmentService";
 import { Spin, Input, Button, message } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import './EvaluationPage.css';
@@ -53,6 +54,22 @@ type Evaluation = {
   evaluatorPosition?: number;
 };
 
+// Department type
+type Department = {
+  departmentID: number;
+  departmentName: string;
+  description?: string;
+};
+
+// Employee type with department info
+type Employee = {
+  employeeID: number;
+  firstName: string;
+  lastName: string;
+  departmentID: number;
+  departmentName?: string;
+};
+
 // Static score choices
 const scoreChoices: ScoreChoice[] = [
   { value: 1, label: "Poor" },
@@ -64,7 +81,10 @@ const scoreChoices: ScoreChoice[] = [
 
 const EvaluationFormPage = () => {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [employees, setEmployees] = useState<{ employeeID: number; firstName: string; lastName: string }[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [evaluatedEmployees, setEvaluatedEmployees] = useState<number[]>([]);
+  const [selectedDepartmentID, setSelectedDepartmentID] = useState<number | null>(null);
   const [selectedEmployeeID, setSelectedEmployeeID] = useState<number | null>(null);
   const [comments, setComments] = useState("");
   const [scores, setScores] = useState<SubGroupScore[]>([]);
@@ -75,6 +95,14 @@ const EvaluationFormPage = () => {
 
   // A map from subGroupID → list of items
   const [itemsBySubGroup, setItemsBySubGroup] = useState<Record<number, Item[]>>({});
+
+  // Filtered employees based on selected department AND excluding evaluated employees
+  const filteredEmployees = selectedDepartmentID
+    ? employees.filter(emp => 
+        emp.departmentID === selectedDepartmentID && 
+        !evaluatedEmployees.includes(emp.employeeID)
+      )
+    : [];
 
   useEffect(() => {
     const userDataStr = localStorage.getItem("userData");
@@ -94,9 +122,11 @@ const EvaluationFormPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [groupsRes, employeesRes] = await Promise.all([
+      const [groupsRes, employeesRes, departmentsRes, evaluationsRes] = await Promise.all([
         axios.get("/EvaluationStructure/groups"),
-        axios.get("/Employees")
+        axios.get("/Employees"),
+        DepartmentService.getAll(),
+        axios.get("/Evaluations")
       ]);
 
       const groupsData = await Promise.all(
@@ -110,7 +140,24 @@ const EvaluationFormPage = () => {
       );
 
       setGroups(groupsData);
-      setEmployees(Array.isArray(employeesRes.data) ? employeesRes.data : employeesRes.data.result || []);
+      setDepartments(
+        Array.isArray(departmentsRes)
+          ? departmentsRes
+              .filter((dept: any) => typeof dept.departmentID === "number")
+              .map((dept: any) => ({
+                departmentID: dept.departmentID,
+                departmentName: dept.departmentName,
+                description: dept.description,
+              }))
+          : []
+      );
+      
+      const employeesData = Array.isArray(employeesRes.data) ? employeesRes.data : employeesRes.data.result || [];
+      setEmployees(employeesData);
+
+      // Extract evaluated employee IDs from evaluations
+      const evaluatedEmployeeIds = evaluationsRes.data.map((evaluation: any) => evaluation.employeeID);
+      setEvaluatedEmployees(evaluatedEmployeeIds);
 
       // Fetch items for all subgroups
       const allSubgroups = groupsData.flatMap((g) => g.subGroups);
@@ -140,6 +187,11 @@ const EvaluationFormPage = () => {
     }
   };
 
+  const handleDepartmentChange = (departmentID: number) => {
+    setSelectedDepartmentID(departmentID);
+    setSelectedEmployeeID(null);
+  };
+
   const handleScoreChange = (subGroupID: number, value: number) => {
     setScores((prev) => {
       const without = prev.filter((s) => s.subGroupID !== subGroupID);
@@ -148,6 +200,11 @@ const EvaluationFormPage = () => {
   };
 
   const handleSubmit = () => {
+    if (selectedDepartmentID == null) {
+      message.error("Please select department first.");
+      return;
+    }
+
     if (selectedEmployeeID == null) {
       message.error("Please select employee.");
       return;
@@ -177,7 +234,12 @@ const EvaluationFormPage = () => {
       .post("/Evaluations", evaluation)
       .then(() => {
         message.success("Evaluation submitted successfully.");
+        
+        // Add the evaluated employee to the evaluatedEmployees list
+        setEvaluatedEmployees(prev => [...prev, selectedEmployeeID]);
+        
         // Reset form
+        setSelectedDepartmentID(null);
         setSelectedEmployeeID(null);
         setComments("");
         setScores([]);
@@ -449,22 +511,53 @@ const EvaluationFormPage = () => {
         <div style={{ marginBottom: 20 }} className="form-section">
           <h2>Employee Information</h2>
           <div className="form-row">
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label>Select Department: </label>
+              <select
+                value={selectedDepartmentID ?? ""}
+                onChange={(e) => handleDepartmentChange(Number(e.target.value))}
+                className="form-control"
+              >
+                <option value="" disabled>
+                  -- Select a department --
+                </option>
+                {departments.map((dept) => (
+                  <option key={dept.departmentID} value={dept.departmentID}>
+                    {dept.departmentName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="form-group">
               <label>Select Employee: </label>
               <select
                 value={selectedEmployeeID ?? ""}
                 onChange={(e) => setSelectedEmployeeID(Number(e.target.value))}
                 className="form-control"
+                disabled={!selectedDepartmentID}
               >
                 <option value="" disabled>
-                  -- Select an employee --
+                  {selectedDepartmentID ? "-- Select an employee --" : "-- Select department first --"}
                 </option>
-                {employees.map((emp) => (
-                  <option key={emp.employeeID} value={emp.employeeID}>
-                    {emp.firstName} {emp.lastName}
+                {filteredEmployees.length > 0 ? (
+                  filteredEmployees.map((emp) => (
+                    <option key={emp.employeeID} value={emp.employeeID}>
+                      {emp.firstName} {emp.lastName}
+                      {emp.departmentName && ` (${emp.departmentName})`}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>
+                    {selectedDepartmentID ? "No available employees to evaluate" : "-- Select department first --"}
                   </option>
-                ))}
+                )}
               </select>
+              {selectedDepartmentID && filteredEmployees.length === 0 && (
+                <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
+                  All employees in this department have already been evaluated.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -664,7 +757,7 @@ const EvaluationFormPage = () => {
           size="large"
           onClick={handleSubmit}
           loading={submitting}
-          disabled={!selectedEmployeeID || scores.length === 0}
+          disabled={!selectedDepartmentID || !selectedEmployeeID || scores.length === 0}
           style={{ minWidth: 200 }}
         >
           Submit Evaluation
