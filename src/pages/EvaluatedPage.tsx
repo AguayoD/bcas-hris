@@ -4,6 +4,8 @@ import { RedoOutlined, PrinterOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import axios from '../api/_axiosInstance';
 import moment from 'moment';
+import { ROLES } from '../types/auth';
+import { useAuth } from '../types/useAuth';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -41,6 +43,9 @@ const EvaluatedPage: React.FC = () => {
   const [selectedEvaluation, setSelectedEvaluation] = useState<EvalWithNames | null>(null);
   const [evaluationAnswers, setEvaluationAnswers] = useState<SubGroupAnswer[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.roleId === ROLES.Admin;
+  const isHR = user?.roleId === ROLES.HR;
 
   useEffect(() => {
     fetchEvaluations();
@@ -349,6 +354,8 @@ const EvaluatedPage: React.FC = () => {
           >
             Print Report
           </Button>
+          {(isAdmin || isHR) && (
+            <>
           <Button 
             type="primary" 
             icon={<RedoOutlined />}
@@ -358,6 +365,8 @@ const EvaluatedPage: React.FC = () => {
           >
             Reset Evaluation Data
           </Button>
+          </>
+          )}
         </div>
       </div>
       <Spin spinning={loading || resetting}>

@@ -43,8 +43,9 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
   
   // Check if current user has permission to upload requirements
   const isAdmin = user?.roleId === ROLES.Admin;
+  const isHR = user?.roleId === ROLES.HR;
   const isCurrentEmployee = user?.employeeId === employeeId;
-  const canUploadRequirements = isAdmin || isCurrentEmployee;
+  const canUploadRequirements = isAdmin || isHR|| isCurrentEmployee;
 
   // Fetch existing uploaded files for the employee on load or employeeId change
   useEffect(() => {
@@ -248,7 +249,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
       {canUploadRequirements && (
         <div className="requirements-actions" style={{ marginTop: 24 }}>
           <Button type="primary" onClick={handleSubmit}>
-            Submit All Requirements
+            Submit Requirements
           </Button>
         </div>
       )}

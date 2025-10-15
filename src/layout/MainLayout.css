@@ -21,6 +21,38 @@
   overflow-y: auto;
 }
 
+/* Prevent submenu text from being cut off */
+.ant-menu-dark .ant-menu-submenu-title {
+  white-space: normal !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+
+.ant-menu-dark .ant-menu-item {
+  white-space: normal !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+
+/* Ensure submenu items also have proper text wrapping */
+.ant-menu-dark .ant-menu-sub .ant-menu-item {
+  white-space: normal !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+/* When sidebar is collapsed, still show full text on hover */
+.ant-layout-sider-collapsed .ant-menu-submenu-title span {
+  display: inline-block !important;
+  max-width: none !important;
+}
+
 .ant-menu-dark, 
 .ant-menu-dark .ant-menu-sub {
   background-color: #00883e !important;
@@ -141,6 +173,7 @@
     margin-left: 0 !important;
   }
 }
+
 /* Custom trigger button color */
 .ant-layout-sider-trigger {
   background: #01582a !important; /* Dark green color */
@@ -155,4 +188,50 @@
 /* Icon inside the trigger */
 .ant-layout-sider-trigger .anticon {
   color: white !important;
+}
+
+/* Additional fixes for text wrapping */
+.ant-menu-dark .ant-menu-submenu-title .ant-menu-title-content,
+.ant-menu-dark .ant-menu-item .ant-menu-title-content {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  line-height: 1.4 !important;
+}
+
+/* Adjust menu item height to accommodate wrapped text */
+.ant-menu-dark .ant-menu-submenu-title,
+.ant-menu-dark .ant-menu-item {
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Ensure icons align properly with wrapped text */
+.ant-menu-dark .ant-menu-submenu-title .ant-menu-item-icon,
+.ant-menu-dark .ant-menu-item .ant-menu-item-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  align-self: flex-start;
+}
+
+/* Submenu content alignment */
+.ant-menu-dark .ant-menu-submenu-title .ant-menu-title-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Fix for collapsed state - show tooltips with full text */
+.ant-layout-sider-collapsed .ant-menu-submenu-title .ant-menu-title-content,
+.ant-layout-sider-collapsed .ant-menu-item .ant-menu-title-content {
+  display: none;
+}
+
+/* Ensure tooltips show full text when collapsed */
+.ant-tooltip {
+  max-width: 200px;
+}
+
+.ant-tooltip-inner {
+  white-space: normal !important;
+  word-wrap: break-word !important;
 }

@@ -25,6 +25,7 @@ import {
   UserOutlined,
   PrinterOutlined,
   FileExcelOutlined,
+  FilterOutlined,
 } from "@ant-design/icons";
 import { EmployeeService } from "../api/EmployeeService";
 import { Employee } from "../types/tblEmployees";
@@ -39,21 +40,17 @@ import PositionService from "../api/PositionService";
 import { useAuth } from "../types/useAuth";
 import { ROLES } from "../types/auth";
 import Requirements from "./Requirements";
+import { EducationalAttainmentService } from "../api/EducationalAttainmentService";
+import { EmploymentStatusService } from "../api/EmploymentStatusService";
+import { EducationalAttainmentTypes } from "../types/tblEducationalAttainment";
+import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
 
 const { Option } = Select;
 const { useBreakpoint } = Grid;
 const { TabPane } = Tabs;
 
-const EDUCATIONAL_ATTAINMENT_OPTIONS = [
-  "Elementary",
-  "High School",
-  "Vocational",
-  "Associate Degree",
-  "Bachelor's Degree",
-  "Master's Degree",
-  "Doctorate",
-  "Post-Doctoral",
-];
+// Remove static arrays since we'll use dynamic data
+// const EDUCATIONAL_ATTAINMENT_OPTIONS = [ ... ];
 
 // Excel export utility functions
 const exportToExcel = (data: any[], filename: string, category?: string) => {
@@ -97,7 +94,7 @@ const exportToExcel = (data: any[], filename: string, category?: string) => {
       `"${employee.address || ""}"`,
       `"${employee.departmentName || ""}"`,
       `"${employee.positionName || ""}"`,
-      `"${employee.employmentStatus || ""}"`,
+      `"${employee.employmentStatusName || ""}"`,
       `"${
         employee.hireDate ? moment(employee.hireDate).format("YYYY-MM-DD") : ""
       }"`,
@@ -106,7 +103,7 @@ const exportToExcel = (data: any[], filename: string, category?: string) => {
       `"${employee.memberGender || ""}"`,
       `"${employee.memberAddress || ""}"`,
       `"${employee.memberPhoneNumber || ""}"`,
-      `"${employee.educationalAttainment || ""}"`,
+      `"${employee.educationalAttainmentName || ""}"`,
       `"${employee.institutionName || ""}"`,
       `"${
         employee.yearGraduated
@@ -154,59 +151,71 @@ const FacultyPage: React.FC = () => {
   const screens = useBreakpoint();
   const [departments, setDepartments] = useState<DepartmentTypes[]>([]);
   const [positions, setPositions] = useState<PositionTypes[]>([]);
+  const [educationalAttainments, setEducationalAttainments] = useState<EducationalAttainmentTypes[]>([]);
+  const [employmentStatuses, setEmploymentStatuses] = useState<EmploymentStatusTypes[]>([]);
   const { user } = useAuth();
   const isAdmin = user?.roleId === ROLES.Admin;
   const isCoordinator = user?.roleId === ROLES.Coordinator;
+  const isHR = user?.roleId === ROLES.HR;
   const tableRef = useRef<HTMLDivElement>(null);
 
-const formatEmployeeId = (
-  employeeId: number | string | undefined,
-  hireDate?: string | Date
-): string => {
-  if (!employeeId) return "N/A";
+  // Filter states
+  const [genderFilter, setGenderFilter] = useState<string>("");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("");
+  const [positionFilter, setPositionFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
 
-  if (typeof employeeId === "string" && employeeId.includes("-")) {
-    return employeeId;
-  }
+  const formatEmployeeId = (
+    employeeId: number | string | undefined,
+    hireDate?: string | Date
+  ): string => {
+    if (!employeeId) return "N/A";
 
-  const idNumber =
-    typeof employeeId === "string" ? parseInt(employeeId) : employeeId;
-
-  if (!hireDate) {
-    console.warn(`⚠️ Missing hireDate for employee ID ${idNumber}`);
-  }
-
-  const year = hireDate ? moment(hireDate).year() : new Date().getFullYear();
-  const formattedId = idNumber.toString().padStart(3, "0");
-  return `${year}-${formattedId}`;
-};
-
-
-const getEnhancedFacultyData = () => {
-  return facultyData.map((employee) => {
-    const isValidHireDate = employee.hireDate && moment(employee.hireDate).isValid();
-
-    // Optional: Log bad data during development
-    if (!isValidHireDate) {
-      console.warn(`⚠️ Invalid or missing hireDate for employeeID ${employee.employeeID}`);
+    if (typeof employeeId === "string" && employeeId.includes("-")) {
+      return employeeId;
     }
 
-    return {
-      ...employee,
-      formattedId: isValidHireDate
-        ? formatEmployeeId(employee.employeeID, employee.hireDate)
-        : "Invalid-Date", // Or "N/A", or skip this field entirely
-      departmentName:
-        departments.find((d) => d.departmentID === employee.departmentID)
-          ?.departmentName || "N/A",
-      positionName:
-        positions.find((p) => p.positionID === employee.positionID)
-          ?.positionName || "N/A",
-      gender: employee.gender || "N/A",
-    };
-  });
-};
+    const idNumber =
+      typeof employeeId === "string" ? parseInt(employeeId) : employeeId;
 
+    if (!hireDate) {
+      console.warn(`⚠️ Missing hireDate for employee ID ${idNumber}`);
+    }
+
+    const year = hireDate ? moment(hireDate).year() : new Date().getFullYear();
+    const formattedId = idNumber.toString().padStart(3, "0");
+    return `${year}-${formattedId}`;
+  };
+
+  const getEnhancedFacultyData = () => {
+    return facultyData.map((employee) => {
+      const isValidHireDate = employee.hireDate && moment(employee.hireDate).isValid();
+
+      if (!isValidHireDate) {
+        console.warn(`⚠️ Invalid or missing hireDate for employeeID ${employee.employeeID}`);
+      }
+
+      return {
+        ...employee,
+        formattedId: isValidHireDate
+          ? formatEmployeeId(employee.employeeID, employee.hireDate)
+          : "Invalid-Date",
+        departmentName:
+          departments.find((d) => d.departmentID === employee.departmentID)
+            ?.departmentName || "N/A",
+        positionName:
+          positions.find((p) => p.positionID === employee.positionID)
+            ?.positionName || "N/A",
+        educationalAttainmentName:
+          educationalAttainments.find((a) => a.educationalAttainmentID === employee.educationalAttainment)
+            ?.attainmentName || "N/A",
+        employmentStatusName:
+          employmentStatuses.find((s) => s.employmentStatusID === employee.employmentStatus)
+            ?.statusName || "N/A",
+        gender: employee.gender || "N/A",
+      };
+    });
+  };
 
   const handlePrint = (category?: string, categoryValue?: string) => {
     const enhancedData = getEnhancedFacultyData();
@@ -281,7 +290,7 @@ const getEnhancedFacultyData = () => {
                 <td>${employee.email || ""}</td>
                 <td>${employee.departmentName}</td>
                 <td>${employee.positionName}</td>
-                <td>${employee.employmentStatus || ""}</td>
+                <td>${employee.employmentStatusName}</td>
                 <td>${
                   employee.hireDate
                     ? moment(employee.hireDate).format("YYYY-MM-DD")
@@ -333,7 +342,7 @@ const getEnhancedFacultyData = () => {
       ...new Set(enhancedData.map((e) => e.departmentName)),
     ].filter(Boolean);
     const employmentStatuses = [
-      ...new Set(enhancedData.map((e) => e.employmentStatus)),
+      ...new Set(enhancedData.map((e) => e.employmentStatusName)),
     ].filter(Boolean);
     const genders = [...new Set(enhancedData.map((e) => e.gender))].filter(
       Boolean
@@ -377,7 +386,7 @@ const getEnhancedFacultyData = () => {
         {uniqueStatuses.map((status) => (
           <Menu.Item
             key={`status-${status}`}
-            onClick={() => handleExportToExcel("employmentStatus", status)}
+            onClick={() => handleExportToExcel("employmentStatusName", status)}
           >
             {status}
           </Menu.Item>
@@ -429,7 +438,7 @@ const getEnhancedFacultyData = () => {
         {uniqueStatuses.map((status) => (
           <Menu.Item
             key={`print-status-${status}`}
-            onClick={() => handlePrint("employmentStatus", status)}
+            onClick={() => handlePrint("employmentStatusName", status)}
           >
             {status}
           </Menu.Item>
@@ -458,13 +467,15 @@ const getEnhancedFacultyData = () => {
         setLoading(true);
         setError(null);
 
-        const [allEmployees, depts, pos] = await Promise.all([
+        const [allEmployees, depts, pos, attainments, statuses] = await Promise.all([
           EmployeeService.getAll(),
           DepartmentService.getAll(),
           PositionService.getAll(),
+          EducationalAttainmentService.getAll(),
+          EmploymentStatusService.getAll(),
         ]);
 
-        const employees = isAdmin || isCoordinator
+        const employees = isAdmin || isCoordinator || isHR
           ? allEmployees
           : allEmployees.filter(
               (emp) => emp.employeeID === (user?.employeeId || 0)
@@ -473,6 +484,8 @@ const getEnhancedFacultyData = () => {
         setFacultyData(employees);
         setDepartments(depts);
         setPositions(pos);
+        setEducationalAttainments(attainments);
+        setEmploymentStatuses(statuses);
       } catch (error) {
         setError("Failed to fetch data");
         message.error("Failed to fetch data");
@@ -483,17 +496,21 @@ const getEnhancedFacultyData = () => {
     };
 
     fetchData();
-  }, [isAdmin, user?.employeeId]);
+  }, [isAdmin, isCoordinator, isHR, user?.employeeId]);
 
   const handleCreate = () => {
-    if (!isAdmin) {
+    if (!isAdmin && !isHR) {
       message.warning("You don't have permission to add new faculty members");
       return;
     }
 
     form.resetFields();
+    
+    // Set default values
+    const defaultEmploymentStatus = employmentStatuses.find(s => s.statusName === "Hired");
+    
     form.setFieldsValue({
-      employmentStatus: "Hired",
+      employmentStatus: defaultEmploymentStatus ? defaultEmploymentStatus.employmentStatusID : null,
       hireDate: moment(),
       gender: "Male",
       memberGender: "Male",
@@ -504,7 +521,7 @@ const getEnhancedFacultyData = () => {
   };
 
   const handleEdit = (record: Employee) => {
-    if (!isAdmin && record.employeeID !== user?.employeeId) {
+    if (!isAdmin && !isHR && record.employeeID !== user?.employeeId) {
       message.warning("You can only edit your own profile");
       return;
     }
@@ -520,7 +537,8 @@ const getEnhancedFacultyData = () => {
       address: record.address,
       departmentID: record.departmentID ? Number(record.departmentID) : null,
       positionID: record.positionID ? Number(record.positionID) : null,
-      employmentStatus: record.employmentStatus || "Hired",
+      educationalAttainment: record.educationalAttainment ? Number(record.educationalAttainment) : null,
+      employmentStatus: record.employmentStatus ? Number(record.employmentStatus) : null,
       hireDate: record.hireDate ? moment(record.hireDate) : null,
 
       // Family member fields
@@ -530,7 +548,6 @@ const getEnhancedFacultyData = () => {
       memberAddress: record.memberAddress,
       memberPhoneNumber: record.memberPhoneNumber,
       // Educational Attainment
-      educationalAttainment: record.educationalAttainment,
       institutionName: record.institutionName,
       yearGraduated: record.yearGraduated ? moment(record.yearGraduated) : null,
       courseName: record.courseName,
@@ -550,7 +567,7 @@ const getEnhancedFacultyData = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!isAdmin) {
+    if (!isAdmin && !isHR) {
       message.warning("You don't have permission to delete faculty members");
       return;
     }
@@ -575,17 +592,16 @@ const getEnhancedFacultyData = () => {
 
       const formattedValues = {
         ...values,
-  dateOfBirth: values.dateOfBirth
-    ? moment(values.dateOfBirth).format("YYYY-MM-DD")
-    : undefined,
-  hireDate: values.hireDate
-    ? moment(values.hireDate).format("YYYY-MM-DD")
-    : undefined,
-            
-
-          // : moment().format("YYYY-MM-DD"),
+        dateOfBirth: values.dateOfBirth
+          ? moment(values.dateOfBirth).format("YYYY-MM-DD")
+          : undefined,
+        hireDate: values.hireDate
+          ? moment(values.hireDate).format("YYYY-MM-DD")
+          : undefined,
         departmentID: Number(values.departmentID),
         positionID: Number(values.positionID),
+        educationalAttainment: values.educationalAttainment ? Number(values.educationalAttainment) : null,
+        employmentStatus: values.employmentStatus ? Number(values.employmentStatus) : null,
         yearGraduated: values.yearGraduated
           ? moment(values.yearGraduated).format("YYYY-MM-DD")
           : null,
@@ -631,7 +647,7 @@ const getEnhancedFacultyData = () => {
       e.stopPropagation();
     }
 
-    if (!isAdmin) {
+    if (!isAdmin && !isHR) {
       message.warning("You don't have permission to create user accounts");
       return;
     }
@@ -646,9 +662,7 @@ const getEnhancedFacultyData = () => {
       username: `${record.firstName?.toLowerCase() || ""}${
         record.lastName?.toLowerCase() || ""
       }`,
-      positions:
-        positions.find((p) => p.positionID === record.positionID)
-          ?.positionName || 3,
+      roleId: 2, // Default to Teacher role
     });
 
     setIsUserModalVisible(true);
@@ -677,11 +691,45 @@ const getEnhancedFacultyData = () => {
     setDetailModalVisible(true);
   };
 
-  const filteredData = facultyData.filter((record) =>
-    Object.values(record).some((value) =>
-      value?.toString().toLowerCase().includes(searchText.toLowerCase())
-    )
-  );
+  // Apply filters to data
+  const filteredData = facultyData.filter((record) => {
+    // Name search filter (search in both first and last name)
+    const nameMatch = 
+      searchText === "" ||
+      record.firstName?.toLowerCase().includes(searchText.toLowerCase()) ||
+      record.lastName?.toLowerCase().includes(searchText.toLowerCase());
+
+    // Gender filter
+    const genderMatch = 
+      genderFilter === "" || 
+      record.gender === genderFilter;
+
+    // Department filter
+    const departmentMatch = 
+      departmentFilter === "" || 
+      departments.find((d) => d.departmentID === record.departmentID)?.departmentName === departmentFilter;
+
+    // Position filter
+    const positionMatch = 
+      positionFilter === "" || 
+      positions.find((p) => p.positionID === record.positionID)?.positionName === positionFilter;
+
+    // Status filter
+    const statusMatch = 
+      statusFilter === "" || 
+      employmentStatuses.find((s) => s.employmentStatusID === record.employmentStatus)?.statusName === statusFilter;
+
+    return nameMatch && genderMatch && departmentMatch && positionMatch && statusMatch;
+  });
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setGenderFilter("");
+    setDepartmentFilter("");
+    setPositionFilter("");
+    setStatusFilter("");
+    setSearchText("");
+  };
 
   const columns: ColumnsType<Employee> = [
     {
@@ -723,6 +771,39 @@ const getEnhancedFacultyData = () => {
       dataIndex: ["gender"],
       key: "gender",
       responsive: ["sm"],
+      filters: [
+        { text: "Male", value: "Male" },
+        { text: "Female", value: "Female" },
+        { text: "Other", value: "Other" },
+      ],
+      onFilter: (value, record) => record.gender === value,
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Select
+            placeholder="Select gender"
+            value={genderFilter}
+            onChange={(value) => setGenderFilter(value)}
+            style={{ width: 120, marginBottom: 8, display: 'block' }}
+            allowClear
+          >
+            <Option value="Male">Male</Option>
+            <Option value="Female">Female</Option>
+            <Option value="Other">Other</Option>
+          </Select>
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setGenderFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+          </Space>
+        </div>
+      ),
     },
     {
       title: "Department",
@@ -735,6 +816,45 @@ const getEnhancedFacultyData = () => {
           deptId
         );
       },
+      filters: departments
+        .filter(dept => !!dept.departmentName)
+        .map(dept => ({
+          text: String(dept.departmentName),
+          value: String(dept.departmentName),
+        })),
+      onFilter: (value, record) => {
+        const deptName = departments.find((d) => d.departmentID === record.departmentID)?.departmentName;
+        return deptName === value;
+      },
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Select
+            placeholder="Select department"
+            value={departmentFilter}
+            onChange={(value) => setDepartmentFilter(value)}
+            style={{ width: 150, marginBottom: 8, display: 'block' }}
+            allowClear
+          >
+            {departments.map(dept => (
+              <Option key={dept.departmentID} value={dept.departmentName}>
+                {dept.departmentName}
+              </Option>
+            ))}
+          </Select>
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setDepartmentFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+          </Space>
+        </div>
+      ),
     },
     {
       title: "Position",
@@ -747,6 +867,45 @@ const getEnhancedFacultyData = () => {
           positionId
         );
       },
+      filters: positions
+        .filter(pos => !!pos.positionName)
+        .map(pos => ({
+          text: String(pos.positionName),
+          value: String(pos.positionName),
+        })),
+      onFilter: (value, record) => {
+        const posName = positions.find((p) => p.positionID === record.positionID)?.positionName;
+        return posName === value;
+      },
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Select
+            placeholder="Select position"
+            value={positionFilter}
+            onChange={(value) => setPositionFilter(value)}
+            style={{ width: 150, marginBottom: 8, display: 'block' }}
+            allowClear
+          >
+            {positions.map(pos => (
+              <Option key={pos.positionID} value={pos.positionName}>
+                {pos.positionName}
+              </Option>
+            ))}
+          </Select>
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setPositionFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+          </Space>
+        </div>
+      ),
     },
     {
       title: "Email",
@@ -764,6 +923,49 @@ const getEnhancedFacultyData = () => {
       dataIndex: "employmentStatus",
       key: "employmentStatus",
       responsive: ["sm"],
+      render: (statusId) => {
+        const status = employmentStatuses.find(s => s.employmentStatusID === statusId);
+        return status?.statusName || "N/A";
+      },
+      filters: employmentStatuses
+        .filter(status => !!status.statusName)
+        .map(status => ({
+          text: String(status.statusName),
+          value: String(status.statusName),
+        })),
+      onFilter: (value, record) => {
+        const statusName = employmentStatuses.find((s) => s.employmentStatusID === record.employmentStatus)?.statusName;
+        return statusName === value;
+      },
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Select
+            placeholder="Select status"
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value)}
+            style={{ width: 150, marginBottom: 8, display: 'block' }}
+            allowClear
+          >
+            {employmentStatuses.map(status => (
+              <Option key={status.employmentStatusID} value={status.statusName}>
+                {status.statusName}
+              </Option>
+            ))}
+          </Select>
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setStatusFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+          </Space>
+        </div>
+      ),
     },
     {
       title: "Hire Date",
@@ -779,7 +981,7 @@ const getEnhancedFacultyData = () => {
       className: "actions-column",
       render: (_, record) => (
         <Space size="middle" className="actions-space">
-          {(isAdmin || record.employeeID === user?.employeeId) && (
+          {(isAdmin || isHR || record.employeeID === user?.employeeId) && (
             <Button
               type="link"
               icon={<EditOutlined />}
@@ -791,7 +993,7 @@ const getEnhancedFacultyData = () => {
               aria-label="Edit"
             />
           )}
-          {isAdmin && (
+          {(isAdmin || isHR) && (
             <>
               <Button
                 type="link"
@@ -838,14 +1040,27 @@ const getEnhancedFacultyData = () => {
   const cardExtra = (
     <div className="search-add-container">
       <Input.Search
-        placeholder="Search faculty"
+        placeholder="Search by name"
         allowClear
+        value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
         className="search-input"
         enterButton
         size={screens.xs ? "small" : "middle"}
       />
       <Space>
+        {/* Clear Filters Button */}
+        {(genderFilter || departmentFilter || positionFilter || statusFilter || searchText) && (
+          <Button
+            icon={<FilterOutlined />}
+            onClick={clearAllFilters}
+            size={screens.xs ? "small" : "middle"}
+            title="Clear all filters"
+          >
+            {screens.sm ? "Clear Filters" : ""}
+          </Button>
+        )}
+
         <Dropdown
           overlay={printMenu}
           placement="bottomRight"
@@ -875,7 +1090,7 @@ const getEnhancedFacultyData = () => {
           </Button>
         </Dropdown>
 
-        {isAdmin && (
+        {(isAdmin || isHR) && (
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -967,7 +1182,7 @@ const getEnhancedFacultyData = () => {
                 rules={[{ required: true, message: "Please enter first name" }]}
                 className="form-item"
               >
-                <Input disabled={!!editingId} />
+                <Input />
               </Form.Item>
 
               <Form.Item
@@ -976,7 +1191,7 @@ const getEnhancedFacultyData = () => {
                 rules={[{ required: true, message: "Please enter last name" }]}
                 className="form-item"
               >
-                <Input disabled={!!editingId} />
+                <Input />
               </Form.Item>
             </div>
 
@@ -987,7 +1202,7 @@ const getEnhancedFacultyData = () => {
                 rules={[{ required: true, message: "Please select gender" }]}
                 className="form-item"
               >
-                <Select disabled={!!editingId}>
+                <Select>
                   <Option value="Male">Male</Option>
                   <Option value="Female">Female</Option>
                   <Option value="Other">Other</Option>
@@ -1002,7 +1217,7 @@ const getEnhancedFacultyData = () => {
                 ]}
                 className="form-item"
               >
-                <DatePicker style={{ width: "100%" }} disabled={!!editingId} />
+                <DatePicker style={{ width: "100%" }}/>
               </Form.Item>
             </div>
 
@@ -1045,12 +1260,10 @@ const getEnhancedFacultyData = () => {
               <Form.Item
                 name="departmentID"
                 label="Department"
-                rules={[
-                  { required: isAdmin, message: "Please select department" },
-                ]}
+                rules={[{ required: true, message: "Please select department" }]}
                 className="form-item"
               >
-                <Select disabled={!isAdmin}>
+                <Select disabled={!isAdmin && !isHR}>
                   {departments.map((dept) => (
                     <Option key={dept.departmentID} value={dept.departmentID}>
                       {dept.departmentName}
@@ -1062,39 +1275,31 @@ const getEnhancedFacultyData = () => {
               <Form.Item
                 name="positionID"
                 label="Position"
-                rules={[
-                  { required: isAdmin, message: "Please select position" },
-                ]}
+                rules={[{ required: true, message: "Please select position" }]}
                 className="form-item"
               >
-                <Select disabled={!isAdmin}>
+                <Select disabled={!isAdmin && !isHR}>
                   {positions.map((position) => (
-                    <Option
-                      key={position.positionID}
-                      value={position.positionID}
-                    >
+                    <Option key={position.positionID} value={position.positionID}>
                       {position.positionName}
                     </Option>
                   ))}
                 </Select>
               </Form.Item>
             </div>
+
             <div className="form-row">
               <Form.Item
                 name="employmentStatus"
                 label="Employment Status"
-                initialValue="Hired"
                 className="form-item"
               >
-                <Select disabled={!isAdmin}>
-                  <Option value="Hired">Hired</Option>
-                  <Option value="Probation">Probation</Option>
-                  {editingId && (
-                    <>
-                      <Option value="Terminated">Terminated</Option>
-                      <Option value="Resigned">Resigned</Option>
-                    </>
-                  )}
+                <Select disabled={!isAdmin && !isHR}>
+                  {employmentStatuses.map((status) => (
+                    <Option key={status.employmentStatusID} value={status.employmentStatusID}>
+                      {status.statusName}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
 
@@ -1102,11 +1307,9 @@ const getEnhancedFacultyData = () => {
                 name="hireDate"
                 label="Hire Date"
                 className="form-item"
-                rules={[
-                  { required: isAdmin, message: "Please select hire date" },
-                ]}
+                rules={[{ required: true, message: "Please select hire date" }]}
               >
-                <DatePicker style={{ width: "100%" }} disabled={!isAdmin} />
+                <DatePicker style={{ width: "100%" }} disabled={!isAdmin && !isHR} />
               </Form.Item>
             </div>
 
@@ -1119,9 +1322,9 @@ const getEnhancedFacultyData = () => {
                 className="form-item"
               >
                 <Select placeholder="Select Educational Attainment">
-                  {EDUCATIONAL_ATTAINMENT_OPTIONS.map((level) => (
-                    <Option key={level} value={level}>
-                      {level}
+                  {educationalAttainments.map((attainment) => (
+                    <Option key={attainment.educationalAttainmentID} value={attainment.educationalAttainmentID}>
+                      {attainment.attainmentName}
                     </Option>
                   ))}
                 </Select>
@@ -1319,6 +1522,7 @@ const getEnhancedFacultyData = () => {
               <Option value={2}>Teacher</Option>
               <Option value={3}>Non-Teacher</Option>
               <Option value={4}>Coordinator</Option>
+              <Option value={5}>HR</Option>
             </Select>
           </Form.Item>
         </Form>
@@ -1424,7 +1628,9 @@ const getEnhancedFacultyData = () => {
                     <div className="detail-row">
                       <span className="detail-label">Status:</span>
                       <span className="detail-value">
-                        {selectedEmployeeDetails.employmentStatus}
+                        {employmentStatuses.find(
+                          (s) => s.employmentStatusID === selectedEmployeeDetails.employmentStatus
+                        )?.statusName || "N/A"}
                       </span>
                     </div>
                     <div className="detail-row">
@@ -1454,7 +1660,9 @@ const getEnhancedFacultyData = () => {
                         Educational Attainment:
                       </span>
                       <span className="detail-value">
-                        {selectedEmployeeDetails.educationalAttainment || "N/A"}
+                        {educationalAttainments.find(
+                          (a) => a.educationalAttainmentID === selectedEmployeeDetails.educationalAttainment
+                        )?.attainmentName || "N/A"}
                       </span>
                     </div>
                     <div className="detail-row">

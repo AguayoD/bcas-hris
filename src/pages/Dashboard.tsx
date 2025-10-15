@@ -69,7 +69,7 @@ const Dashboard: React.FC = () => {
   const [employeeEvaluation, setEmployeeEvaluation] = useState<any>(null);
   
   const { user } = useAuth();
-  const isAdmin = user?.roleId === ROLES.Admin;
+  const isAdmin = user?.roleId === ROLES.Admin || user?.roleId === ROLES.HR;
   const isCoordinator = user?.roleId === ROLES.Coordinator;
 
   useEffect(() => {
@@ -422,218 +422,164 @@ const Dashboard: React.FC = () => {
     }] : []),
   ];
 
-  const renderAdminDashboard = () => (
-    <>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic
-              title="Total Teachers"
-              value={totalTeachers}
-              prefix={<UserOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic
-              title="Non-Teaching Staff"
-              value={totalNonTeaching}
-              prefix={<TeamOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic
-              title="Total Employees"
-              value={employeeData.length}
-              prefix={<TeamOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic 
-              title="Regular" 
-              value={contractTypeCounts['Regular']} 
-              prefix={<FileProtectOutlined />} 
-            />
-          </Card>
-        </Col>
-      </Row>
+  const renderAdminDashboard = () => {
+    // Find the current admin user in the employee data
+    const currentAdmin = employeeData.find(emp => emp.employeeID === user?.employeeId);
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic
-              title="Contractual"
-              value={contractTypeCounts['Contractual']}
-              prefix={<FileTextIconOutlined />}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col xs={24} md={16}>
-          <Card 
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                <span><LineChartOutlined /> Analytics Dashboard</span>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {chartView === 'hire' && (
-                    <Select 
-                      value={hiringView} 
-                      onChange={setHiringView}
-                      style={{ width: 120 }}
-                    >
-                      <Option value="monthly">Monthly</Option>
-                      <Option value="yearly">Yearly</Option>
-                    </Select>
-                  )}
-                  <Select 
-                    value={chartView} 
-                    onChange={setChartView}
-                    style={{ width: 200 }}
-                  >
-                    <Option value="hire">Hiring Trends</Option>
-                    <Option value="contract">Contract End Dates</Option>
-                    <Option value="evaluation">Evaluation Status</Option>
-                  </Select>
+    return (
+      <>
+        {/* Welcome section for Admin/HR */}
+        <Row gutter={[16, 16]}>
+          <Col span={24}>
+            <Card className="welcome-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <Avatar size={64} icon={<UserOutlined />} />
+                <div>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {currentAdmin ? `${currentAdmin.firstName} ${currentAdmin.lastName}` : user?.username || 'Administrator'}
+                  </Title>
+                  <Text type="secondary">
+                    {user?.roleId === ROLES.Admin ? 'Administrator' : 'HR'}
+                  </Text>
                 </div>
               </div>
-            }
-            className="dashboard-calendar-card"
-          >
-            {chartView === 'hire' && (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={getHiringTrendData()}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="month" 
-                    angle={hiringView === 'monthly' ? -45 : 0}
-                    textAnchor={hiringView === 'monthly' ? 'end' : 'middle'}
-                    height={hiringView === 'monthly' ? 80 : 60}
-                  />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip 
-                    content={({ active, payload }: any) => {
-                      if (active && payload && payload.length) {
-                        return (
-                          <div style={{ 
-                            background: 'white', 
-                            padding: '10px', 
-                            border: '1px solid #ccc',
-                            borderRadius: '4px'
-                          }}>
-                            <p style={{ margin: 0, fontWeight: 'bold' }}>
-                              {payload[0].payload.month}
-                            </p>
-                            <p style={{ margin: '4px 0 0 0', color: '#1890ff' }}>
-                              Employees Hired: {payload[0].value}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="employees" 
-                    stroke="#1890ff" 
-                    strokeWidth={2}
-                    name="Employees Hired"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-            
-            {chartView === 'contract' && (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={getContractEndData()}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" angle={-45} textAnchor="end" height={80} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip 
-                    content={({ active, payload }: any) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div style={{ 
-                            background: 'white', 
-                            padding: '12px', 
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            maxWidth: '300px'
-                          }}>
-                            <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                              {data.month}
-                            </p>
-                            <p style={{ marginBottom: '8px' }}>
-                              Contracts Ending: {data.contracts}
-                            </p>
-                            <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                              {data.employees.map((emp: string, idx: number) => (
-                                <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
-                                  • {emp}
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend />
-                  <Bar 
-                    dataKey="contracts" 
-                    fill="#ff4d4f" 
-                    name="Contracts Ending"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            
-            {chartView === 'evaluation' && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={getEvaluationData()}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={(props: any) => {
-                        const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-                        const RADIAN = Math.PI / 180;
-                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                        return (
-                          <text
-                            x={x}
-                            y={y}
-                            fill="white"
-                            textAnchor={x > cx ? 'start' : 'end'}
-                            dominantBaseline="central"
-                          >
-                            {`${(percent * 100).toFixed(0)}%`}
-                          </text>
-                        );
-                      }}
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card className="dashboard-stat-card">
+              <Statistic
+                title="Total Teachers"
+                value={totalTeachers}
+                prefix={<UserOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card className="dashboard-stat-card">
+              <Statistic
+                title="Non-Teaching Staff"
+                value={totalNonTeaching}
+                prefix={<TeamOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card className="dashboard-stat-card">
+              <Statistic
+                title="Total Employees"
+                value={employeeData.length}
+                prefix={<TeamOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card className="dashboard-stat-card">
+              <Statistic 
+                title="Regular" 
+                value={contractTypeCounts['Regular']} 
+                prefix={<FileProtectOutlined />} 
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card className="dashboard-stat-card">
+              <Statistic
+                title="Contractual"
+                value={contractTypeCounts['Contractual']}
+                prefix={<FileTextIconOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+          <Col xs={24} md={16}>
+            <Card 
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <span><LineChartOutlined /> Analytics Dashboard</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {chartView === 'hire' && (
+                      <Select 
+                        value={hiringView} 
+                        onChange={setHiringView}
+                        style={{ width: 120 }}
+                      >
+                        <Option value="monthly">Monthly</Option>
+                        <Option value="yearly">Yearly</Option>
+                      </Select>
+                    )}
+                    <Select 
+                      value={chartView} 
+                      onChange={setChartView}
+                      style={{ width: 200 }}
                     >
-                      {getEvaluationData().map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
+                      <Option value="hire">Hiring Trends</Option>
+                      <Option value="contract">Contract End Dates</Option>
+                      <Option value="evaluation">Evaluation Status</Option>
+                    </Select>
+                  </div>
+                </div>
+              }
+              className="dashboard-calendar-card"
+            >
+              {chartView === 'hire' && (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={getHiringTrendData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="month" 
+                      angle={hiringView === 'monthly' ? -45 : 0}
+                      textAnchor={hiringView === 'monthly' ? 'end' : 'middle'}
+                      height={hiringView === 'monthly' ? 80 : 60}
+                    />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip 
+                      content={({ active, payload }: any) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div style={{ 
+                              background: 'white', 
+                              padding: '10px', 
+                              border: '1px solid #ccc',
+                              borderRadius: '4px'
+                            }}>
+                              <p style={{ margin: 0, fontWeight: 'bold' }}>
+                                {payload[0].payload.month}
+                              </p>
+                              <p style={{ margin: '4px 0 0 0', color: '#1890ff' }}>
+                                Employees Hired: {payload[0].value}
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="employees" 
+                      stroke="#1890ff" 
+                      strokeWidth={2}
+                      name="Employees Hired"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+              
+              {chartView === 'contract' && (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={getContractEndData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" angle={-45} textAnchor="end" height={80} />
+                    <YAxis allowDecimals={false} />
                     <Tooltip 
                       content={({ active, payload }: any) => {
                         if (active && payload && payload.length) {
@@ -644,15 +590,13 @@ const Dashboard: React.FC = () => {
                               padding: '12px', 
                               border: '1px solid #ccc',
                               borderRadius: '4px',
-                              maxWidth: '300px',
-                              maxHeight: '400px',
-                              overflowY: 'auto'
+                              maxWidth: '300px'
                             }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '8px', color: data.fill }}>
-                                {data.name}
+                              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                                {data.month}
                               </p>
                               <p style={{ marginBottom: '8px' }}>
-                                Total: {data.value} employees
+                                Contracts Ending: {data.contracts}
                               </p>
                               <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
                                 <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
@@ -669,40 +613,120 @@ const Dashboard: React.FC = () => {
                       }}
                     />
                     <Legend />
-                  </PieChart>
+                    <Bar 
+                      dataKey="contracts" 
+                      fill="#ff4d4f" 
+                      name="Contracts Ending"
+                    />
+                  </BarChart>
                 </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card 
-            title={<span><BellOutlined /> Contract End Alerts</span>}
-            className="dashboard-notifications-card"
-          >
-            <List
-              itemLayout="horizontal"
-              dataSource={adminNotifications}
-              locale={{ emptyText: "No upcoming contract endings." }}
-              renderItem={(item) => (
-                <List.Item className="dashboard-notification-item">
-                  <List.Item.Meta
-                    title={<div className="dashboard-notification-title">{item.title}</div>}
-                    description={
-                      <>
-                        <div className="dashboard-notification-description">{item.description}</div>
-                        <div className="dashboard-notification-date">End Date: {item.date}</div>
-                      </>
-                    }
-                  />
-                </List.Item>
               )}
-            />
-          </Card>
-        </Col>
-      </Row>
-    </>
-  );
+              
+              {chartView === 'evaluation' && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={getEvaluationData()}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={(props: any) => {
+                          const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+                          const RADIAN = Math.PI / 180;
+                          const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                          return (
+                            <text
+                              x={x}
+                              y={y}
+                              fill="white"
+                              textAnchor={x > cx ? 'start' : 'end'}
+                              dominantBaseline="central"
+                            >
+                              {`${(percent * 100).toFixed(0)}%`}
+                            </text>
+                          );
+                        }}
+                      >
+                        {getEvaluationData().map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        content={({ active, payload }: any) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div style={{ 
+                                background: 'white', 
+                                padding: '12px', 
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                                maxWidth: '300px',
+                                maxHeight: '400px',
+                                overflowY: 'auto'
+                              }}>
+                                <p style={{ fontWeight: 'bold', marginBottom: '8px', color: data.fill }}>
+                                  {data.name}
+                                </p>
+                                <p style={{ marginBottom: '8px' }}>
+                                  Total: {data.value} employees
+                                </p>
+                                <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
+                                  <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
+                                  {data.employees.map((emp: string, idx: number) => (
+                                    <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
+                                      • {emp}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Card 
+              title={<span><BellOutlined /> Contract End Alerts</span>}
+              className="dashboard-notifications-card"
+            >
+              <List
+                itemLayout="horizontal"
+                dataSource={adminNotifications}
+                locale={{ emptyText: "No upcoming contract endings." }}
+                renderItem={(item) => (
+                  <List.Item className="dashboard-notification-item">
+                    <List.Item.Meta
+                      title={<div className="dashboard-notification-title">{item.title}</div>}
+                      description={
+                        <>
+                          <div className="dashboard-notification-description">{item.description}</div>
+                          <div className="dashboard-notification-date">End Date: {item.date}</div>
+                        </>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+            </Card>
+          </Col>
+        </Row>
+      </>
+    );
+  };
 
   const renderCoordinatorDashboard = () => (
     <>

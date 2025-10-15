@@ -7,6 +7,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   FolderOutlined,
+  BookOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
@@ -15,6 +17,7 @@ import { ROLES } from "../types/auth";
 import './MainLayout.css';
 
 const { Header, Content, Sider } = Layout;
+const { SubMenu } = Menu;
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -27,6 +30,7 @@ const MainLayout = () => {
   // Check if user is admin or coordinator
   const isAdmin = user?.roleId === ROLES.Admin;
   const isCoordinator = user?.roleId === ROLES.Coordinator;
+  const isHR = user?.roleId === ROLES.HR;
 
   useEffect(() => {
     const handleResize = () => {
@@ -67,9 +71,17 @@ const MainLayout = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
+  // Define menu item type
+  type MenuItem = {
+    key: string;
+    icon: React.ReactNode;
+    label: string;
+    children?: MenuItem[];
+  };
+
   // Define menu items based on user role
-  const getMenuItems = () => {
-    const baseItems = [
+  const getMenuItems = (): MenuItem[] => {
+    const baseItems: MenuItem[] = [
       {
         key: "dashboard",
         icon: <DashboardOutlined />,
@@ -80,25 +92,6 @@ const MainLayout = () => {
         icon: <TeamOutlined />,
         label: "Employees",
       }
-    ];
-
-    // Admin-only menu items
-    const adminItems = [
-      {
-        key: "departments",
-        icon: <TeamOutlined />,
-        label: "Department",
-      },
-      {
-        key: "positions",
-        icon: <TeamOutlined />,
-        label: "Positions",
-      },
-      {
-        key: "users",
-        icon: <UserOutlined />,
-        label: "User Management",
-      },
     ];
 
     // Items available for both Admin and Coordinator
@@ -123,6 +116,42 @@ const MainLayout = () => {
       },
     ];
 
+    // Admin-only menu items grouped in a submenu
+    const adminSubMenu = isAdmin || isHR ? [
+      {
+        key: "submenu-admin",
+        icon: <SettingOutlined />,
+        label: "System Management",
+        children: [
+          {
+            key: "departments",
+            icon: <TeamOutlined />,
+            label: "Department",
+          },
+          {
+            key: "positions",
+            icon: <TeamOutlined />,
+            label: "Positions",
+          },
+          {
+            key: 'educational-attainment',
+            icon: <BookOutlined />,
+            label: 'Educational Attainment',
+          },
+          {
+            key: 'employment-status', 
+            icon: <TeamOutlined />,
+            label: 'Employment Status',
+          },
+          {
+            key: "users",
+            icon: <UserOutlined />,
+            label: "User Management",
+          },
+        ]
+      }
+    ] : [];
+
     const logoutItem = {
       key: "logout",
       icon: <LogoutOutlined />,
@@ -132,20 +161,20 @@ const MainLayout = () => {
     // Build menu items array based on user role
     let menuItems = [...baseItems];
     
-    // Add admin-only items if user is admin
-    if (isAdmin) {
-      menuItems = [...menuItems, ...adminItems];
-    }
-    
     // Add evaluation items for both admin and coordinator
-    if (isAdmin || isCoordinator) {
+    if (isAdmin || isCoordinator || isHR) {
       menuItems = [...menuItems, ...evaluationItems];
     }
     
     // Add common items
     menuItems = [...menuItems, ...commonItems];
     
-    // Add logout item
+    // Add admin submenu right before logout
+    if (isAdmin || isHR) {
+      menuItems = [...menuItems, ...adminSubMenu];
+    }
+    
+    // Add logout item at the end
     menuItems.push(logoutItem);
 
     return menuItems;
@@ -189,8 +218,27 @@ const MainLayout = () => {
           selectedKeys={[getActiveKey()]}
           mode="inline"
           onClick={handleMenuClick}
-          items={getMenuItems()}
-        />
+        >
+          {getMenuItems().map(item => 
+            item.children ? (
+              <SubMenu
+                key={item.key}
+                icon={item.icon}
+                title={item.label}
+              >
+                {item.children.map(child => (
+                  <Menu.Item key={child.key} icon={child.icon}>
+                    {child.label}
+                  </Menu.Item>
+                ))}
+              </SubMenu>
+            ) : (
+              <Menu.Item key={item.key} icon={item.icon}>
+                {item.label}
+              </Menu.Item>
+            )
+          )}
+        </Menu>
       </Sider>
       <Layout className="main-content">
         <Header style={{ padding: 0, background: "#fff", textAlign: "center" }}>

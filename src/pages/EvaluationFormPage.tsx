@@ -6,6 +6,8 @@ import DepartmentService from "../api/DepartmentService";
 import { Spin, Input, Button, message } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import './EvaluationPage.css';
+import { ROLES } from "../types/auth";
+import { useAuth } from "../types/useAuth";
 
 // Types
 type ScoreChoice = {
@@ -91,7 +93,11 @@ const EvaluationFormPage = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [userData, setUserData] = useState<any>(null);
+  const [userDepartment, setUserDepartment] = useState<Department | null>(null);
   const [editing, setEditing] = useState<boolean>(false);
+  const { user } = useAuth();
+  const isAdmin = user?.roleId === ROLES.Admin;
+  const isHR = user?.roleId === ROLES.HR;
 
   // A map from subGroupID → list of items
   const [itemsBySubGroup, setItemsBySubGroup] = useState<Record<number, Item[]>>({});
@@ -101,9 +107,33 @@ const EvaluationFormPage = () => {
     return evaluations.filter(evalItem => evalItem.employeeID === employeeID).length;
   };
 
-  // Filtered employees based on selected department AND evaluation count
+  // Get user's department from employees list
+  const getUserDepartment = () => {
+    if (!userData?.employeeId || employees.length === 0) return null;
+    
+    const userEmployee = employees.find(emp => emp.employeeID === userData.employeeId);
+    if (!userEmployee) return null;
+    
+    return departments.find(dept => dept.departmentID === userEmployee.departmentID) || null;
+  };
+
+  // Get available departments based on user role
+  const getAvailableDepartments = () => {
+    if (isAdmin || isHR) {
+      return departments;
+    }
+    // Regular users can only see their own department
+    return userDepartment ? [userDepartment] : [];
+  };
+
+  // Filtered employees based on selected department AND evaluation count AND prevent self-evaluation
   const filteredEmployees = selectedDepartmentID
     ? employees.filter(emp => {
+        // Prevent evaluators from evaluating themselves
+        if (emp.employeeID === userData?.employeeId) {
+          return false;
+        }
+        
         if (emp.departmentID === selectedDepartmentID) {
           const evaluationCount = getEvaluationCount(emp.employeeID);
           const departmentName = departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase();
@@ -133,6 +163,19 @@ const EvaluationFormPage = () => {
 
     loadData();
   }, []);
+
+  // Update user department when employees and departments are loaded
+  useEffect(() => {
+    if (employees.length > 0 && departments.length > 0 && userData?.employeeId) {
+      const department = getUserDepartment();
+      setUserDepartment(department);
+      
+      // Auto-select department for non-admin/HR users
+      if (department && !isAdmin && !isHR) {
+        setSelectedDepartmentID(department.departmentID);
+      }
+    }
+  }, [employees, departments, userData]);
 
   const loadData = async () => {
     setLoading(true);
@@ -224,6 +267,12 @@ const EvaluationFormPage = () => {
       return;
     }
 
+    // Additional check to prevent self-evaluation
+    if (selectedEmployeeID === userData?.employeeId) {
+      message.error("You cannot evaluate yourself.");
+      return;
+    }
+
     if (!userData?.employeeId) {
       message.error("Evaluator information missing. Please log in again.");
       return;
@@ -253,7 +302,11 @@ const EvaluationFormPage = () => {
         setEvaluations(prev => [...prev, response.data]);
         
         // Reset form
-        setSelectedDepartmentID(null);
+        if (isAdmin || isHR) {
+          setSelectedDepartmentID(null);
+        } else {
+          setSelectedDepartmentID(userDepartment?.departmentID || null);
+        }
         setSelectedEmployeeID(null);
         setComments("");
         setScores([]);
@@ -494,6 +547,8 @@ const EvaluationFormPage = () => {
     }
   };
 
+  const availableDepartments = getAvailableDepartments();
+
   return (
     <Spin spinning={loading || submitting} tip={submitting ? "Submitting..." : "Loading..."}>
       <div style={{ padding: 20 }} className="evaluation-page">
@@ -504,44 +559,63 @@ const EvaluationFormPage = () => {
           <p>Employee Performance Assessment</p>
           <p className="evaluator-info">
             Evaluator: <span>{userData?.username}</span>
-            <Button 
-              type="link" 
-              onClick={() => setEditing(!editing)}
-              style={{ marginLeft: 10 }}
-            >
-              {editing ? "Exit Edit Mode" : "Edit Form Structure"}
-            </Button>
-            <Button 
-              type="link" 
-              onClick={loadData}
-              style={{ marginLeft: 10 }}
-              loading={loading}
-            >
-              Refresh Data
-            </Button>
+            {userDepartment && ` (${userDepartment.departmentName})`}
+            {(isAdmin || isHR) && (
+              <>
+                <Button 
+                  type="link" 
+                  onClick={() => setEditing(!editing)}
+                  style={{ marginLeft: 10 }}
+                >
+                  {editing ? "Exit Edit Mode" : "Edit Form Structure"}
+                </Button>
+                <Button 
+                  type="link" 
+                  onClick={loadData}
+                  style={{ marginLeft: 10 }}
+                  loading={loading}
+                >
+                  Refresh Data
+                </Button>
+              </>
+            )}
           </p>
         </header>
 
         <div style={{ marginBottom: 20 }} className="form-section">
           <h2>Employee Information</h2>
           <div className="form-row">
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Select Department: </label>
-              <select
-                value={selectedDepartmentID ?? ""}
-                onChange={(e) => handleDepartmentChange(Number(e.target.value))}
-                className="form-control"
-              >
-                <option value="" disabled>
-                  -- Select a department --
-                </option>
-                {departments.map((dept) => (
-                  <option key={dept.departmentID} value={dept.departmentID}>
-                    {dept.departmentName}
+            {(isAdmin || isHR) ? (
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Select Department: </label>
+                <select
+                  value={selectedDepartmentID ?? ""}
+                  onChange={(e) => handleDepartmentChange(Number(e.target.value))}
+                  className="form-control"
+                >
+                  <option value="" disabled>
+                    -- Select a department --
                   </option>
-                ))}
-              </select>
-            </div>
+                  {availableDepartments.map((dept) => (
+                    <option key={dept.departmentID} value={dept.departmentID}>
+                      {dept.departmentName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Department: </label>
+                <div style={{ padding: '8px 0', fontWeight: 'bold' }}>
+                  {userDepartment ? userDepartment.departmentName : 'N/A'}
+                </div>
+                {!userDepartment && (
+                  <div style={{ color: '#ff4d4f', fontSize: '14px', marginTop: 4 }}>
+                    No department assigned. Please contact administrator.
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="form-group">
               <label>Select Employee: </label>
@@ -576,8 +650,8 @@ const EvaluationFormPage = () => {
               {selectedDepartmentID && filteredEmployees.length === 0 && (
                 <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
                   {departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase() === 'mix' 
-                    ? "All employees in this department have already been evaluated 3 times."
-                    : "All employees in this department have already been evaluated."}
+                    ? "All employees in this department have already been evaluated 3 times or you cannot evaluate yourself."
+                    : "All employees in this department have already been evaluated or you cannot evaluate yourself."}
                 </div>
               )}
             </div>

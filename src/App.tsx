@@ -16,6 +16,8 @@ import ForgotPasswordPage from "./pages/ForgotPassword.tsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.tsx";
 import EvaluationFormPage from "./pages/EvaluationFormPage.tsx";
 import EvaluatedPage from "./pages/EvaluatedPage.tsx";
+import EducationalAttainmentPage from "./pages/EducationalAttainmentPage.tsx";
+import EmploymentStatusPage from "./pages/EmploymentStatusPage.tsx";
 
 function App() {
   return (
@@ -36,7 +38,7 @@ function App() {
           <Route 
             path="/faculty" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Teaching, ROLES.NonTeaching, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Teaching, ROLES.NonTeaching, ROLES.Coordinator, ROLES.HR]}>
                 <FacultyPage />
               </ProtectedRoute>
             } 
@@ -46,7 +48,7 @@ function App() {
           <Route 
             path="/departments" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <DepartmentPage />
               </ProtectedRoute>
             } 
@@ -54,15 +56,31 @@ function App() {
           <Route 
             path="/positions" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <PositionPage />
+              </ProtectedRoute>
+            } 
+          />
+            <Route 
+            path="/educational-attainment" 
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
+                <EducationalAttainmentPage />
+              </ProtectedRoute>
+            } 
+          />
+            <Route 
+            path="/employment-status" 
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
+                <EmploymentStatusPage />
               </ProtectedRoute>
             } 
           />
           <Route 
             path="/users" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <UserManagementPage />
               </ProtectedRoute>
             } 
@@ -70,7 +88,7 @@ function App() {
           <Route 
             path="/contracts" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Teaching, ROLES.NonTeaching, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Teaching, ROLES.NonTeaching, ROLES.Coordinator, ROLES.HR]}>
                 <ContractPage />
               </ProtectedRoute>
             } 
@@ -79,7 +97,7 @@ function App() {
           <Route 
             path="/settings" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <SettingsPage />
               </ProtectedRoute>
             } 
@@ -87,7 +105,7 @@ function App() {
           <Route 
             path="/evaluationForm" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <EvaluationFormPage />
               </ProtectedRoute>
             } 
@@ -95,7 +113,7 @@ function App() {
           <Route 
             path="/evaluatedPage" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <EvaluatedPage />
               </ProtectedRoute>
             } 

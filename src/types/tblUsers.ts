@@ -17,6 +17,7 @@ export type UserListItem = {
   isActive: boolean | null;
   firstName?: string | null;
   lastName?: string | null;
+  roleName?: string | null;
 };
 
 export type Role = {

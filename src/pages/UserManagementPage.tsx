@@ -35,6 +35,7 @@ const UserManagementPage: React.FC = () => {
     { roleId: 2, roleName: "Teacher" },
     { roleId: 3, roleName: "Non-Teacher" },
     { roleId: 4, roleName: "Coordinator" },
+    { roleId: 5, roleName: "HR" },
   ];
 
   // Fetch user data function

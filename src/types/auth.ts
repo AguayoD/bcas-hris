@@ -19,11 +19,17 @@ export type LoginTypes = {
   password: string;
 };
 
+export interface Role {
+  roleId: number;
+  roleName: string;
+}
+
 export const ROLES = {
   Admin: 1,
   Teaching: 2,
   NonTeaching: 3,
   Coordinator: 4,
+  HR: 5,
 } as const;
 
 export interface ForgotPasswordDTO {

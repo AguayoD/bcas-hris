@@ -9,7 +9,7 @@ export interface Employee {
   address?: string;
   positionID?: number;
   departmentID?: number; 
-  employmentStatus?: string;
+  employmentStatus?: number;
   hireDate?: Date | string;
 
   // Family member fields
@@ -20,7 +20,7 @@ export interface Employee {
   memberPhoneNumber?: string;
 
   //Educational Attainment
-  educationalAttainment?: string;
+  educationalAttainment?: number;
   institutionName?: string;
   yearGraduated?: Date | string;
   courseName?: string;
