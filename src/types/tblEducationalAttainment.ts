@@ -5,4 +5,5 @@ export interface EducationalAttainmentTypes {
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  
 }

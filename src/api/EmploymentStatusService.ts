@@ -79,5 +79,6 @@ update: async (id: number, status: EmploymentStatusTypes): Promise<EmploymentSta
     });
     throw new Error(`Failed to delete employment status: ${response.status} ${response.statusText}`);
   }
+  
 },
 };

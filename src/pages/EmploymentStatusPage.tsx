@@ -103,6 +103,7 @@ const EmploymentStatusPage: React.FC = () => {
     form.resetFields();
     form.setFieldsValue({ isActive: true });
     setIsModalVisible(true);
+    
   };
 
   const columns: ColumnsType<EmploymentStatusTypes> = [

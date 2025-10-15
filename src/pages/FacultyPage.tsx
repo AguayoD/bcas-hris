@@ -1294,7 +1294,7 @@ const FacultyPage: React.FC = () => {
                 label="Employment Status"
                 className="form-item"
               >
-                <Select disabled={!isAdmin && !isHR}>
+                <Select placeholder="Select Employment Status" disabled={!isAdmin && !isHR}>
                   {employmentStatuses.map((status) => (
                     <Option key={status.employmentStatusID} value={status.employmentStatusID}>
                       {status.statusName}
@@ -1931,6 +1931,7 @@ const FacultyPage: React.FC = () => {
             </Tabs>
           </>
         )}
+        
       </Modal>
     </div>
   );

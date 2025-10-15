@@ -5,4 +5,5 @@ export interface EmploymentStatusTypes {
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  
 }

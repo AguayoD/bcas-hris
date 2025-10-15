@@ -427,6 +427,7 @@ const EvaluatedPage: React.FC = () => {
       </Modal>
     </div>
   );
+  
 };
 
 export default EvaluatedPage;

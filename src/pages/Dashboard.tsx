@@ -1196,6 +1196,7 @@ const Dashboard: React.FC = () => {
       </Spin>
     </div>
   );
+  
 };
 
 export default Dashboard;

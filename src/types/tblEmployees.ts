@@ -34,4 +34,5 @@ export interface Employee {
   supervisor ?: string;
   accomplishment ?: string;
   summary ?: string;
+  
 }

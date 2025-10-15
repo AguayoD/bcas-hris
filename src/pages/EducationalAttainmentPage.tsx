@@ -215,6 +215,7 @@ const EducationalAttainmentPage: React.FC = () => {
       </Modal>
     </div>
   );
+  
 };
 
 export default EducationalAttainmentPage;

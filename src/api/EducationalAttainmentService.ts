@@ -76,5 +76,6 @@ export const EducationalAttainmentService = {
         throw new Error(`Failed to delete educational attainment: ${response.statusText}`);
       }
     }
+    
   },
 };
