@@ -1,4 +1,3 @@
-// api/EmploymentStatusService.ts
 import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
 
 const API_BASE_URL = 'https://localhost:7245/api';
