@@ -8,7 +8,7 @@ export interface Employee {
   phoneNumber?: string;
   address?: string;
   positionID?: number;
-  departmentID?: number; 
+  departmentID?: number | null; 
   employmentStatus?: number;
   hireDate?: Date | string;
 

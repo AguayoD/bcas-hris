@@ -8,7 +8,6 @@ import {
   MenuUnfoldOutlined,
   FolderOutlined,
   BookOutlined,
-  SettingOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
@@ -116,40 +115,33 @@ const MainLayout = () => {
       },
     ];
 
-    // Admin-only menu items grouped in a submenu
-    const adminSubMenu = isAdmin || isHR ? [
+    // Admin-only menu items (previously in submenu)
+    const adminItems = (isAdmin || isHR) ? [
       {
-        key: "submenu-admin",
-        icon: <SettingOutlined />,
-        label: "System Management",
-        children: [
-          {
-            key: "departments",
-            icon: <TeamOutlined />,
-            label: "Department",
-          },
-          {
-            key: "positions",
-            icon: <TeamOutlined />,
-            label: "Positions",
-          },
-          {
-            key: 'educational-attainment',
-            icon: <BookOutlined />,
-            label: 'Educational Attainment',
-          },
-          {
-            key: 'employment-status', 
-            icon: <TeamOutlined />,
-            label: 'Employment Status',
-          },
-          {
-            key: "users",
-            icon: <UserOutlined />,
-            label: "User Management",
-          },
-        ]
-      }
+        key: "departments",
+        icon: <TeamOutlined />,
+        label: "Department",
+      },
+      {
+        key: "positions",
+        icon: <TeamOutlined />,
+        label: "Positions",
+      },
+      {
+        key: 'educational-attainment',
+        icon: <BookOutlined />,
+        label: 'Educational Attainment',
+      },
+      {
+        key: 'employment-status', 
+        icon: <TeamOutlined />,
+        label: 'Employment Status',
+      },
+      {
+        key: "users",
+        icon: <UserOutlined />,
+        label: "User Management",
+      },
     ] : [];
 
     const logoutItem = {
@@ -169,9 +161,9 @@ const MainLayout = () => {
     // Add common items
     menuItems = [...menuItems, ...commonItems];
     
-    // Add admin submenu right before logout
+    // Add admin items directly to the main menu
     if (isAdmin || isHR) {
-      menuItems = [...menuItems, ...adminSubMenu];
+      menuItems = [...menuItems, ...adminItems];
     }
     
     // Add logout item at the end

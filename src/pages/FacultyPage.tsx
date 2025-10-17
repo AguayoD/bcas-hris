@@ -49,9 +49,6 @@ const { Option } = Select;
 const { useBreakpoint } = Grid;
 const { TabPane } = Tabs;
 
-// Remove static arrays since we'll use dynamic data
-// const EDUCATIONAL_ATTAINMENT_OPTIONS = [ ... ];
-
 // Excel export utility functions
 const exportToExcel = (data: any[], filename: string, category?: string) => {
   const headers = [
@@ -165,6 +162,21 @@ const FacultyPage: React.FC = () => {
   const [positionFilter, setPositionFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
 
+  // Helper function to check if position should have department
+  const shouldHaveDepartment = (positionId?: number): boolean => {
+    if (!positionId) return true; // Default to having department
+    
+    const position = positions.find(p => p.positionID === positionId);
+    const positionName = position?.positionName?.toLowerCase() || '';
+    
+    // Positions that should NOT have department
+    const nonDepartmentPositions = ['hr', 'admin', 'non-teaching', 'non-teacher'];
+    
+    return !nonDepartmentPositions.some(nonDeptPos => 
+      positionName.includes(nonDeptPos)
+    );
+  };
+
   const formatEmployeeId = (
     employeeId: number | string | undefined,
     hireDate?: string | Date
@@ -200,9 +212,10 @@ const FacultyPage: React.FC = () => {
         formattedId: isValidHireDate
           ? formatEmployeeId(employee.employeeID, employee.hireDate)
           : "Invalid-Date",
-        departmentName:
-          departments.find((d) => d.departmentID === employee.departmentID)
-            ?.departmentName || "N/A",
+        departmentName: shouldHaveDepartment(employee.positionID)
+          ? departments.find((d) => d.departmentID === employee.departmentID)
+              ?.departmentName || "N/A"
+          : "N/A",
         positionName:
           positions.find((p) => p.positionID === employee.positionID)
             ?.positionName || "N/A",
@@ -498,6 +511,21 @@ const FacultyPage: React.FC = () => {
     fetchData();
   }, [isAdmin, isCoordinator, isHR, user?.employeeId]);
 
+  // Watch for position changes to handle department logic
+    const watchedPositionID = Form.useWatch('positionID', form);
+  
+    useEffect(() => {
+      // When the watched position changes, clear department if not applicable and re-validate
+      if (watchedPositionID !== undefined) {
+        if (!shouldHaveDepartment(watchedPositionID)) {
+          // Clear department if position shouldn't have one
+          form.setFieldsValue({ departmentID: null });
+        }
+        // Force re-validation of department field (ignore validation errors here)
+        form.validateFields(['departmentID']).catch(() => {});
+      }
+    }, [watchedPositionID, form, positions]);
+
   const handleCreate = () => {
     if (!isAdmin && !isHR) {
       message.warning("You don't have permission to add new faculty members");
@@ -526,6 +554,9 @@ const FacultyPage: React.FC = () => {
       return;
     }
 
+    // Check if this position should have department
+    const hasDepartment = shouldHaveDepartment(record.positionID);
+
     form.setFieldsValue({
       employeeID: record.employeeID,
       firstName: record.firstName,
@@ -535,7 +566,7 @@ const FacultyPage: React.FC = () => {
       email: record.email,
       phoneNumber: record.phoneNumber,
       address: record.address,
-      departmentID: record.departmentID ? Number(record.departmentID) : null,
+      departmentID: hasDepartment && record.departmentID ? Number(record.departmentID) : null,
       positionID: record.positionID ? Number(record.positionID) : null,
       educationalAttainment: record.educationalAttainment ? Number(record.educationalAttainment) : null,
       employmentStatus: record.employmentStatus ? Number(record.employmentStatus) : null,
@@ -590,6 +621,9 @@ const FacultyPage: React.FC = () => {
       const values = await form.validateFields();
       setLoading(true);
 
+      const positionId = Number(values.positionID);
+      const hasDepartment = shouldHaveDepartment(positionId);
+
       const formattedValues = {
         ...values,
         dateOfBirth: values.dateOfBirth
@@ -598,8 +632,8 @@ const FacultyPage: React.FC = () => {
         hireDate: values.hireDate
           ? moment(values.hireDate).format("YYYY-MM-DD")
           : undefined,
-        departmentID: Number(values.departmentID),
-        positionID: Number(values.positionID),
+        departmentID: hasDepartment ? Number(values.departmentID) : null, // Set to null if no department
+        positionID: positionId,
         educationalAttainment: values.educationalAttainment ? Number(values.educationalAttainment) : null,
         employmentStatus: values.employmentStatus ? Number(values.employmentStatus) : null,
         yearGraduated: values.yearGraduated
@@ -707,7 +741,9 @@ const FacultyPage: React.FC = () => {
     // Department filter
     const departmentMatch = 
       departmentFilter === "" || 
-      departments.find((d) => d.departmentID === record.departmentID)?.departmentName === departmentFilter;
+      (shouldHaveDepartment(record.positionID)
+        ? departments.find((d) => d.departmentID === record.departmentID)?.departmentName === departmentFilter
+        : "N/A" === departmentFilter);
 
     // Position filter
     const positionMatch = 
@@ -810,19 +846,28 @@ const FacultyPage: React.FC = () => {
       dataIndex: "departmentID",
       key: "departmentID",
       responsive: ["sm"],
-      render: (deptId) => {
+      render: (deptId, record) => {
+        if (!shouldHaveDepartment(record.positionID)) {
+          return "N/A";
+        }
         return (
           departments.find((d) => d.departmentID === deptId)?.departmentName ||
           deptId
         );
       },
-      filters: departments
-        .filter(dept => !!dept.departmentName)
-        .map(dept => ({
-          text: String(dept.departmentName),
-          value: String(dept.departmentName),
-        })),
+      filters: [
+        ...departments
+          .filter(dept => !!dept.departmentName)
+          .map(dept => ({
+            text: String(dept.departmentName),
+            value: String(dept.departmentName),
+          })),
+        { text: "N/A", value: "N/A" }
+      ],
       onFilter: (value, record) => {
+        if (value === "N/A") {
+          return !shouldHaveDepartment(record.positionID);
+        }
         const deptName = departments.find((d) => d.departmentID === record.departmentID)?.departmentName;
         return deptName === value;
       },
@@ -840,6 +885,7 @@ const FacultyPage: React.FC = () => {
                 {dept.departmentName}
               </Option>
             ))}
+            <Option value="N/A">N/A</Option>
           </Select>
           <Space>
             <Button
@@ -1260,10 +1306,22 @@ const FacultyPage: React.FC = () => {
               <Form.Item
                 name="departmentID"
                 label="Department"
-                rules={[{ required: true, message: "Please select department" }]}
+                rules={[
+                  {
+                    required: shouldHaveDepartment(form.getFieldValue('positionID')),
+                    message: "Please select department"
+                  }
+                ]}
                 className="form-item"
               >
-                <Select disabled={!isAdmin && !isHR}>
+                <Select 
+                  disabled={!isAdmin && !isHR || !shouldHaveDepartment(form.getFieldValue('positionID'))}
+                  placeholder={
+                    shouldHaveDepartment(form.getFieldValue('positionID')) 
+                      ? "Select Department" 
+                      : "Not applicable for this position"
+                  }
+                >
                   {departments.map((dept) => (
                     <Option key={dept.departmentID} value={dept.departmentID}>
                       {dept.departmentName}
@@ -1608,12 +1666,12 @@ const FacultyPage: React.FC = () => {
                     <div className="detail-row">
                       <span className="detail-label">Department:</span>
                       <span className="detail-value">
-                        {departments.find(
-                          (d) =>
-                            d.departmentID ===
-                            selectedEmployeeDetails.departmentID
-                        )?.departmentName ||
-                          selectedEmployeeDetails.departmentID}
+                        {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
+                          ? departments.find(
+                              (d) => d.departmentID === selectedEmployeeDetails.departmentID
+                            )?.departmentName || selectedEmployeeDetails.departmentID
+                          : "N/A"
+                        }
                       </span>
                     </div>
                     <div className="detail-row">

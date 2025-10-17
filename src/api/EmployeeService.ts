@@ -39,7 +39,7 @@ update: async (id: number, employee: Partial<Employee>): Promise<Employee> => {
       PhoneNumber: employee.phoneNumber,
       Address: employee.address,
       PositionID: employee.positionID,
-      DepartmentID: employee.departmentID,
+      DepartmentID: employee.departmentID, // This can now be null
       EmploymentStatus: employee.employmentStatus,
       HireDate: employee.hireDate,
       MemberFirstName: employee.memberFirstName,
