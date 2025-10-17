@@ -157,11 +157,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const getPositionName = (positionId?: number) => {
+  const getPositionName = (positionId?: number | null) => {
     return positions.find(p => p.positionID === positionId)?.positionName || "Unknown";
   };
 
-  const getDepartmentName = (departmentId?: number) => {
+  const getDepartmentName = (departmentId?: number | null) => {
     return departments.find(d => d.departmentID === departmentId)?.departmentName || "Unknown";
   };
 

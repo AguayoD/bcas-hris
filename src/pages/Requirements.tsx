@@ -41,15 +41,18 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
   const [uploadedFiles, setUploadedFiles] = useState<{ [docType: string]: UploadedFile }>({});
   const { user } = useAuth();
   
-  // Check if current user has permission to upload requirements
+  // Check permissions - only the employee themselves can upload
   const isAdmin = user?.roleId === ROLES.Admin;
   const isHR = user?.roleId === ROLES.HR;
   const isCurrentEmployee = user?.employeeId === employeeId;
-  const canUploadRequirements = isAdmin || isHR|| isCurrentEmployee;
+  
+  // Admin and HR can only view, only current employee can upload
+  const canUploadRequirements = isCurrentEmployee;
+  const canViewRequirements = isAdmin || isHR || isCurrentEmployee;
 
   // Fetch existing uploaded files for the employee on load or employeeId change
   useEffect(() => {
-    if (!employeeId) {
+    if (!employeeId || !canViewRequirements) {
       setUploadedFiles({});
       return;
     }
@@ -75,7 +78,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
     };
 
     fetchUploadedFiles();
-  }, [employeeId]);
+  }, [employeeId, canViewRequirements]);
 
   const onFileChange = (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canUploadRequirements) {
@@ -150,8 +153,13 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
     }
   };
 
-  // Download file handler - allow everyone to download
+  // Download file handler - allow everyone with view permissions to download
   const handleDownload = (fileId: number, fileName: string) => {
+    if (!canViewRequirements) {
+      message.warning("You don't have permission to download files");
+      return;
+    }
+
     fetch(`${API_BASE_URL}/${fileId}`)
       .then((res) => {
         if (!res.ok) {
@@ -174,6 +182,25 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
       });
   };
 
+  // If no permissions to view at all
+  if (!canViewRequirements) {
+    return (
+      <div className="requirements-container">
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '20px', 
+          backgroundColor: '#f5f5f5', 
+          borderRadius: '4px',
+          marginBottom: '16px'
+        }}>
+          <p style={{ color: '#999', margin: 0 }}>
+            You don't have permission to view requirements for this employee.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="requirements-container">
       {!canUploadRequirements && (
@@ -185,7 +212,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
           marginBottom: '16px'
         }}>
           <p style={{ color: '#999', margin: 0 }}>
-            You can only view requirements. Only admins and the employee themselves can upload requirements.
+            View mode: You can only view and download requirements. Only the employee themselves can upload requirements.
           </p>
         </div>
       )}
@@ -196,7 +223,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
 
           return (
             <div className="requirement-item" key={doc.id} style={{ marginBottom: 16 }}>
-              <div className="requirement-label" style={{ marginBottom: 4 }}>
+              <div className="requirement-label" style={{ marginBottom: 4, fontWeight: 'bold' }}>
                 {doc.label}:
               </div>
               <div
@@ -226,8 +253,8 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
                     </div>
                   </>
                 ) : (
-                  <div style={{ color: '#999' }}>
-                    No permission to upload
+                  <div style={{ color: '#666', fontStyle: 'italic' }}>
+                    {uploadedFile ? "File uploaded" : "No file uploaded yet"}
                   </div>
                 )}
 
@@ -237,7 +264,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
                     onClick={() => handleDownload(uploadedFile.id, uploadedFile.fileName)}
                     style={{ marginLeft: 12 }}
                   >
-                    Download Existing File
+                    Download
                   </Button>
                 )}
               </div>
