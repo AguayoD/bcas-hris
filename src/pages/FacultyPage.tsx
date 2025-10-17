@@ -1371,159 +1371,164 @@ const FacultyPage: React.FC = () => {
               </Form.Item>
             </div>
 
-            <Divider orientation="left">Educational Attainment</Divider>
+            {/* Show Educational Attainment, Work Experience, and Family Member Information only when editing */}
+            {editingId && (
+              <>
+                <Divider orientation="left">Educational Attainment</Divider>
 
-            <div className="form-row">
-              <Form.Item
-                name="educationalAttainment"
-                label="Educational Attainment"
-                className="form-item"
-              >
-                <Select placeholder="Select Educational Attainment">
-                  {educationalAttainments.map((attainment) => (
-                    <Option key={attainment.educationalAttainmentID} value={attainment.educationalAttainmentID}>
-                      {attainment.attainmentName}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
+                <div className="form-row">
+                  <Form.Item
+                    name="educationalAttainment"
+                    label="Educational Attainment"
+                    className="form-item"
+                  >
+                    <Select placeholder="Select Educational Attainment">
+                      {educationalAttainments.map((attainment) => (
+                        <Option key={attainment.educationalAttainmentID} value={attainment.educationalAttainmentID}>
+                          {attainment.attainmentName}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
 
-              <Form.Item
-                name="yearGraduated"
-                label="Year Graduated"
-                className="form-item"
-              >
-                <DatePicker
-                  style={{ width: "100%" }}
-                  picker="year"
-                  placeholder="Select Year"
-                />
-              </Form.Item>
-            </div>
+                  <Form.Item
+                    name="yearGraduated"
+                    label="Year Graduated"
+                    className="form-item"
+                  >
+                    <DatePicker
+                      style={{ width: "100%" }}
+                      picker="year"
+                      placeholder="Select Year"
+                    />
+                  </Form.Item>
+                </div>
 
-            <Form.Item name="courseName" label="Course Name">
-              <Input placeholder="Course Name" />
-            </Form.Item>
+                <Form.Item name="courseName" label="Course Name">
+                  <Input placeholder="Course Name" />
+                </Form.Item>
 
-            <Form.Item name="institutionName" label="Institution Name">
-              <Input placeholder="Name of school or institution" />
-            </Form.Item>
+                <Form.Item name="institutionName" label="Institution Name">
+                  <Input placeholder="Name of school or institution" />
+                </Form.Item>
 
-            <Divider orientation="left">Work Experience</Divider>
-            <div className="form-row">
-              <Form.Item
-                name="previousPosition"
-                label="Previous Position"
-                className="form-item"
-              >
-                <Input placeholder="Previous Position" />
-              </Form.Item>
+                <Divider orientation="left">Work Experience</Divider>
+                <div className="form-row">
+                  <Form.Item
+                    name="previousPosition"
+                    label="Previous Position"
+                    className="form-item"
+                  >
+                    <Input placeholder="Previous Position" />
+                  </Form.Item>
 
-              <Form.Item
-                name="officeName"
-                label="Office Name"
-                className="form-item"
-              >
-                <Input placeholder="Office Name" />
-              </Form.Item>
-            </div>
-            <div className="form-row">
-              <Form.Item
-                name="durationStart"
-                label="Duration Start"
-                className="form-item"
-              >
-                <DatePicker
-                  style={{ width: "100%" }}
-                  placeholder="Start Date"
-                />
-              </Form.Item>
-              <Form.Item
-                name="durationEnd"
-                label="Duration End"
-                className="form-item"
-              >
-                <DatePicker style={{ width: "100%" }} placeholder="End Date" />
-              </Form.Item>
-            </div>
-            <Form.Item
-              name="agencyName"
-              label="Agency Name"
-              className="form-item"
-            >
-              <Input placeholder="Agency Name" />
-            </Form.Item>
+                  <Form.Item
+                    name="officeName"
+                    label="Office Name"
+                    className="form-item"
+                  >
+                    <Input placeholder="Office Name" />
+                  </Form.Item>
+                </div>
+                <div className="form-row">
+                  <Form.Item
+                    name="durationStart"
+                    label="Duration Start"
+                    className="form-item"
+                  >
+                    <DatePicker
+                      style={{ width: "100%" }}
+                      placeholder="Start Date"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="durationEnd"
+                    label="Duration End"
+                    className="form-item"
+                  >
+                    <DatePicker style={{ width: "100%" }} placeholder="End Date" />
+                  </Form.Item>
+                </div>
+                <Form.Item
+                  name="agencyName"
+                  label="Agency Name"
+                  className="form-item"
+                >
+                  <Input placeholder="Agency Name" />
+                </Form.Item>
 
-            <Form.Item
-              name="supervisor"
-              label="Supervisor"
-              className="form-item"
-            >
-              <Input placeholder="Supervisor" />
-            </Form.Item>
-            <Form.Item
-              name="accomplishment"
-              label="List Of Accomplishment"
-              className="form-item"
-            >
-              <Input.TextArea rows={3} placeholder="Accomplishment" />
-            </Form.Item>
+                <Form.Item
+                  name="supervisor"
+                  label="Supervisor"
+                  className="form-item"
+                >
+                  <Input placeholder="Supervisor" />
+                </Form.Item>
+                <Form.Item
+                  name="accomplishment"
+                  label="List Of Accomplishment"
+                  className="form-item"
+                >
+                  <Input.TextArea rows={3} placeholder="Accomplishment" />
+                </Form.Item>
 
-            <Form.Item
-              name="summary"
-              label="Summary Of Actual Duties and Responsibilities"
-            >
-              <Input.TextArea
-                rows={3}
-                placeholder="Brief Summary of Work Experience"
-              />
-            </Form.Item>
+                <Form.Item
+                  name="summary"
+                  label="Summary Of Actual Duties and Responsibilities"
+                >
+                  <Input.TextArea
+                    rows={3}
+                    placeholder="Brief Summary of Work Experience"
+                  />
+                </Form.Item>
 
-            <Divider orientation="left">Family Member Information</Divider>
+                <Divider orientation="left">Family Member Information</Divider>
 
-            <div className="form-row">
-              <Form.Item
-                name="memberFirstName"
-                label="Family Member First Name"
-                className="form-item"
-              >
-                <Input placeholder="First Name" />
-              </Form.Item>
+                <div className="form-row">
+                  <Form.Item
+                    name="memberFirstName"
+                    label="Family Member First Name"
+                    className="form-item"
+                  >
+                    <Input placeholder="First Name" />
+                  </Form.Item>
 
-              <Form.Item
-                name="memberLastName"
-                label="Family Member Last Name"
-                className="form-item"
-              >
-                <Input placeholder="Last Name" />
-              </Form.Item>
-            </div>
+                  <Form.Item
+                    name="memberLastName"
+                    label="Family Member Last Name"
+                    className="form-item"
+                  >
+                    <Input placeholder="Last Name" />
+                  </Form.Item>
+                </div>
 
-            <div className="form-row">
-              <Form.Item
-                name="memberGender"
-                label="Family Member Gender"
-                className="form-item"
-              >
-                <Select placeholder="Select Gender">
-                  <Option value="Male">Male</Option>
-                  <Option value="Female">Female</Option>
-                  <Option value="Other">Other</Option>
-                </Select>
-              </Form.Item>
+                <div className="form-row">
+                  <Form.Item
+                    name="memberGender"
+                    label="Family Member Gender"
+                    className="form-item"
+                  >
+                    <Select placeholder="Select Gender">
+                      <Option value="Male">Male</Option>
+                      <Option value="Female">Female</Option>
+                      <Option value="Other">Other</Option>
+                    </Select>
+                  </Form.Item>
 
-              <Form.Item
-                name="memberPhoneNumber"
-                label="Family Member Phone"
-                className="form-item"
-              >
-                <Input placeholder="Phone Number" />
-              </Form.Item>
-            </div>
+                  <Form.Item
+                    name="memberPhoneNumber"
+                    label="Family Member Phone"
+                    className="form-item"
+                  >
+                    <Input placeholder="Phone Number" />
+                  </Form.Item>
+                </div>
 
-            <Form.Item name="memberAddress" label="Family Member Address">
-              <Input.TextArea rows={2} placeholder="Address" />
-            </Form.Item>
+                <Form.Item name="memberAddress" label="Family Member Address">
+                  <Input.TextArea rows={2} placeholder="Address" />
+                </Form.Item>
+              </>
+            )}
           </Form>
         </div>
       </Modal>
