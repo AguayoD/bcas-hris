@@ -163,6 +163,9 @@ const FacultyPage: React.FC = () => {
   const [positionFilter, setPositionFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
 
+  // Coordinator department state
+  const [, setCoordinatorDepartmentId] = useState<number | null>(null);
+
   // Helper function to check if position should have department
   const shouldHaveDepartment = (positionId?: number): boolean => {
     if (!positionId) return true; // Default to having department
@@ -489,11 +492,43 @@ const FacultyPage: React.FC = () => {
           EmploymentStatusService.getAll(),
         ]);
 
-        const employees = isAdmin || isCoordinator || isHR
-          ? allEmployees
-          : allEmployees.filter(
-              (emp) => emp.employeeID === (user?.employeeId || 0)
+        let employees = allEmployees;
+        let coordinatorDeptId: number | null = null;
+
+        // Filter based on user role
+        if (isAdmin || isHR) {
+          // Admin and HR can see all employees
+          employees = allEmployees;
+        } else if (isCoordinator) {
+          // Get coordinator's department from their employee record
+          if (user?.employeeId) {
+            // Look up coordinator's employee record from the already-fetched allEmployees array
+            const coordinatorEmployee = allEmployees.find(
+              (e) => e.employeeID === user.employeeId
             );
+            coordinatorDeptId = coordinatorEmployee?.departmentID ?? null;
+            setCoordinatorDepartmentId(coordinatorDeptId);
+
+            if (coordinatorDeptId) {
+              // Filter employees to only show those in the coordinator's department
+              employees = allEmployees.filter(
+                (emp) => emp.departmentID === coordinatorDeptId
+              );
+              message.info(`Showing employees from your department`);
+            } else {
+              employees = [];
+              message.warning("No department assigned to your account");
+            }
+          } else {
+            employees = [];
+            message.warning("No employee ID found for coordinator");
+          }
+        } else {
+          // Regular users can only see their own profile
+          employees = allEmployees.filter(
+            (emp) => emp.employeeID === (user?.employeeId || 0)
+          );
+        }
 
         setFacultyData(employees);
         setDepartments(depts);
@@ -880,6 +915,7 @@ const FacultyPage: React.FC = () => {
             onChange={(value) => setDepartmentFilter(value)}
             style={{ width: 150, marginBottom: 8, display: 'block' }}
             allowClear
+            disabled={isCoordinator} // Disable department filter for coordinators
           >
             {departments.map(dept => (
               <Option key={dept.departmentID} value={dept.departmentName}>
