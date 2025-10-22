@@ -67,6 +67,7 @@ const Dashboard: React.FC = () => {
   const [positions, setPositions] = useState<PositionTypes[]>([]);
   const [departments, setDepartments] = useState<DepartmentTypes[]>([]);
   const [evaluations, setEvaluations] = useState<any[]>([]);
+  const [, setEmployeeRoles] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState<boolean>(false);
   const [currentEmployee, setCurrentEmployee] = useState<EmployeeWithContracts | null>(null);
   const [chartView, setChartView] = useState<'hire' | 'contract' | 'evaluation'>('hire');
@@ -81,6 +82,10 @@ const Dashboard: React.FC = () => {
 
   // Admin and HR see the same admin dashboard
   const canViewAdminDashboard = isAdmin || isHR;
+
+  // Define teaching and non-teaching roles (typed as number[] to avoid literal union issues)
+  const teachingRoles: number[] = [ROLES.Teaching, ROLES.Coordinator];
+  const nonTeachingRoles: number[] = [ROLES.NonTeaching];
 
   useEffect(() => {
     fetchData();
@@ -99,12 +104,22 @@ const Dashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [employees, positionsData, departmentsData, evaluationsData] = await Promise.all([
+      const [employees, positionsData, departmentsData, evaluationsData, usersData] = await Promise.all([
         EmployeeService.getAll(),
         PositionService.getAll(),
         DepartmentService.getAll(),
-        axios.get("/Evaluations")
+        axios.get("/Evaluations"),
+        axios.get("/Users") // Fetch user data to get roles
       ]);
+      
+      // Create a map of employeeID to roleId
+      const roleMap = new Map<number, number>();
+      usersData.data.forEach((userItem: any) => {
+        if (userItem.employeeId) {
+          roleMap.set(userItem.employeeId, userItem.roleId);
+        }
+      });
+      setEmployeeRoles(roleMap);
       
       let filteredEmployees = employees;
       
@@ -127,7 +142,8 @@ const Dashboard: React.FC = () => {
             const employeeWithContracts: EmployeeWithContracts = {
               ...emp,
               contracts: employeeContracts,
-              contractStatus: ""
+              contractStatus: "",
+              roleId: roleMap.get(emp.employeeID!) || 0
             };
             
             return employeeWithContracts;
@@ -136,6 +152,7 @@ const Dashboard: React.FC = () => {
             return {
               ...emp,
               contracts: [],
+              roleId: roleMap.get(emp.employeeID!) || 0
             } as unknown as EmployeeWithContracts;
           }
         })
@@ -177,21 +194,27 @@ const Dashboard: React.FC = () => {
     return departments.find(d => d.departmentID === departmentId)?.departmentName || "Unknown";
   };
 
-  const teachingPositions = ["Teacher", "Faculty","Coordinator"];
+  const getRoleName = (roleId?: number | null) => {
+    if (!roleId) return "Unknown";
+    switch (roleId) {
+      case ROLES.Admin: return "Admin";
+      case ROLES.Teaching: return "Teaching";
+      case ROLES.NonTeaching: return "Non-Teaching";
+      case ROLES.Coordinator: return "Coordinator";
+      case ROLES.HR: return "HR";
+      default: return "Unknown";
+    }
+  };
   
-  const totalTeachers = employeeData.filter(e => {
-    const positionName = getPositionName(e.positionID);
-    return teachingPositions.some(tp => 
-      positionName.toLowerCase().includes(tp.toLowerCase())
-    );
-  }).length;
+  // Count teachers and non-teaching staff based on roles
+  const totalTeachers = employeeData.filter(e =>
+    e.roleId != null && teachingRoles.includes(e.roleId as number)
+  ).length;
   
-  const totalNonTeaching = employeeData.filter(e => {
-    const positionName = getPositionName(e.positionID);
-    return !teachingPositions.some(tp => 
-      positionName.toLowerCase().includes(tp.toLowerCase())
-    );
-  }).length;
+  const totalNonTeaching = employeeData.filter(e =>
+    e.roleId != null && nonTeachingRoles.includes(e.roleId as number)
+  ).length;
+
   
   const getContractTypeCounts = () => {
     const counts: { [key: string]: number } = {
@@ -238,7 +261,7 @@ const Dashboard: React.FC = () => {
       const latestContract = employee.contracts[employee.contracts.length - 1];
       return {
         title: `${employee.firstName} ${employee.lastName}'s contract ends soon`,
-        description: `Position: ${getPositionName(employee.positionID)}`,
+        description: `Position: ${getPositionName(employee.positionID)} | Role: ${getRoleName(employee.roleId)}`,
         date: moment(latestContract.contractEndDate).format("MMMM D, YYYY"),
       };
     });
@@ -256,6 +279,7 @@ const Dashboard: React.FC = () => {
         isEvaluated: false,
         evaluationScore: null,
         evaluationDate: null,
+        role: getRoleName(user?.roleId),
       };
     }
 
@@ -291,6 +315,7 @@ const Dashboard: React.FC = () => {
       isEvaluated: !!employeeEvaluation,
       evaluationScore: employeeEvaluation?.finalScore || null,
       evaluationDate: employeeEvaluation?.evaluationDate || null,
+      role: getRoleName(currentEmployee.roleId),
     };
   };
 
@@ -794,7 +819,7 @@ const Dashboard: React.FC = () => {
                   Welcome, {employeeStats.employeeName}!
                 </Title>
                 <Text type="secondary">
-                  {employeeStats.position} • {employeeStats.department}
+                  {employeeStats.position} • {employeeStats.department} • {employeeStats.role}
                 </Text>
               </div>
             </div>
@@ -1063,7 +1088,7 @@ const Dashboard: React.FC = () => {
                   Welcome, {employeeStats.employeeName}!
                 </Title>
                 <Text type="secondary">
-                  {employeeStats.position} • {employeeStats.department}
+                  {employeeStats.position} • {employeeStats.department} • {employeeStats.role}
                 </Text>
               </div>
             </div>

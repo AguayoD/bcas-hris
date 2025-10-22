@@ -140,7 +140,8 @@ const ContractPage: React.FC = () => {
             const employeeWithContracts: EmployeeWithContracts = {
               ...emp,
               contracts: employeeContracts,
-              contractStatus: ""
+              contractStatus: "",
+              roleId: 0
             };
             
             return employeeWithContracts;

@@ -23,4 +23,5 @@ export interface Contract {
 export interface EmployeeWithContracts extends Employee {
   contracts: Contract[];
   contractStatus: string;
+  roleId: number;
 }
