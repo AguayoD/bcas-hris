@@ -408,10 +408,10 @@ const ContractPage: React.FC = () => {
     }
   };
 
-  const getDepartmentName = (departmentId: number | undefined) => {
-    if (typeof departmentId !== 'number') return 'Unknown';
+  const getDepartmentName = (departmentId: number | null | undefined): string => {
+    if (departmentId == null) return 'Unknown';
     const department = departments.find(d => d.departmentID === departmentId);
-    return department ? department.departmentName : departmentId;
+    return department ? department.departmentName : String(departmentId);
   };
 
   const beforeUpload: UploadProps['beforeUpload'] = (file) => {

@@ -11,6 +11,7 @@ import {
   Avatar,
   Tag,
   Select,
+  DatePicker,
 } from "antd";
 import {
   UserOutlined,
@@ -44,7 +45,9 @@ import { ContractService } from "../api/ContractService";
 import { EmployeeWithContracts } from "../types/tblContracts";
 import { PositionTypes } from "../types/tblPosition";
 import { DepartmentTypes } from "../types/tblDepartment";
-import moment from "moment"; 
+import moment from "moment";
+import dayjs, { Dayjs } from "dayjs";
+import isBetween from 'dayjs/plugin/isBetween'; 
 import PositionService from "../api/PositionService";
 import DepartmentService from "../api/DepartmentService";
 import { useAuth } from "../types/useAuth";
@@ -55,7 +58,9 @@ import "./Dashboard.css";
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const COLORS = ['#0088FE', '#00C49F']; // Only 2 colors for Evaluated and Pending
+const COLORS = ['#0088FE', '#00C49F'];
+
+dayjs.extend(isBetween);
 
 const Dashboard: React.FC = () => {
   const [employeeData, setEmployeeData] = useState<EmployeeWithContracts[]>([]);
@@ -67,15 +72,19 @@ const Dashboard: React.FC = () => {
   const [chartView, setChartView] = useState<'hire' | 'contract' | 'evaluation'>('hire');
   const [hiringView, setHiringView] = useState<'monthly' | 'yearly'>('monthly');
   const [employeeEvaluation, setEmployeeEvaluation] = useState<any>(null);
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   
   const { user } = useAuth();
-  const isAdmin = user?.roleId === ROLES.Admin || user?.roleId === ROLES.HR;
+  const isAdmin = user?.roleId === ROLES.Admin;
+  const isHR = user?.roleId === ROLES.HR;
   const isCoordinator = user?.roleId === ROLES.Coordinator;
+
+  // Admin and HR see the same admin dashboard
+  const canViewAdminDashboard = isAdmin || isHR;
 
   useEffect(() => {
     fetchData();
     
-    // Listen for evaluation reset events to refresh data
     const handleEvaluationsReset = () => {
       fetchData();
     };
@@ -85,7 +94,7 @@ const Dashboard: React.FC = () => {
     return () => {
       window.removeEventListener('evaluationsReset', handleEvaluationsReset);
     };
-  }, [isAdmin, isCoordinator, user?.employeeId]);
+  }, [isAdmin, isHR, isCoordinator, user?.employeeId]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -97,17 +106,19 @@ const Dashboard: React.FC = () => {
         axios.get("/Evaluations")
       ]);
       
-      // Filter employees based on user role
       let filteredEmployees = employees;
-      if (!isAdmin && !isCoordinator && user?.employeeId) {
-        // Regular employees only see themselves
+      
+      // Admin and HR can see all employees
+      if (canViewAdminDashboard) {
+        filteredEmployees = employees;
+      } else if (!isCoordinator && user?.employeeId) {
+        // Regular employees see only their own data
         filteredEmployees = employees.filter(emp => emp.employeeID === user.employeeId);
       } else if (isCoordinator) {
-        // Coordinators see all employees (for evaluation graph) but focus on their own data
+        // Coordinators see all employees (for evaluation purposes)
         filteredEmployees = employees;
       }
       
-      // Fetch contract data for filtered employees
       const employeesWithContracts = await Promise.all(
         filteredEmployees.map(async (emp) => {
           try {
@@ -135,12 +146,11 @@ const Dashboard: React.FC = () => {
       setDepartments(departmentsData);
       setEvaluations(evaluationsData.data || []);
       
-      // Find current employee data for non-admin users
-      if ((!isAdmin || isCoordinator) && user?.employeeId) {
+      // For non-admin/HR users, set current employee data
+      if (!canViewAdminDashboard && user?.employeeId) {
         const currentEmp = employeesWithContracts.find(emp => emp.employeeID === user.employeeId);
         setCurrentEmployee(currentEmp || null);
         
-        // Find evaluation for current employee
         const employeeEval = evaluationsData.data.find((evalItem: any) => 
           evalItem.employeeID === user.employeeId
         );
@@ -158,14 +168,15 @@ const Dashboard: React.FC = () => {
   };
 
   const getPositionName = (positionId?: number | null) => {
+    if (positionId == null) return "Unknown";
     return positions.find(p => p.positionID === positionId)?.positionName || "Unknown";
   };
 
   const getDepartmentName = (departmentId?: number | null) => {
+    if (departmentId == null) return "Unknown";
     return departments.find(d => d.departmentID === departmentId)?.departmentName || "Unknown";
   };
 
-  // Admin Dashboard Data - Count based on position/role
   const teachingPositions = ["Teacher", "Faculty","Coordinator"];
   
   const totalTeachers = employeeData.filter(e => {
@@ -182,7 +193,6 @@ const Dashboard: React.FC = () => {
     );
   }).length;
   
-  // Count employees by contract type
   const getContractTypeCounts = () => {
     const counts: { [key: string]: number } = {
       'Permanent': 0,
@@ -233,7 +243,6 @@ const Dashboard: React.FC = () => {
       };
     });
 
-  // Employee Dashboard Data
   const getEmployeeStats = () => {
     if (!currentEmployee) {
       return {
@@ -287,31 +296,42 @@ const Dashboard: React.FC = () => {
 
   const employeeStats = getEmployeeStats();
 
-  // Prepare chart data for hiring trends
   const getHiringTrendData = () => {
+    const filteredEmployees = employeeData.filter((employee) => {
+      if (!dateRange[0] || !dateRange[1] || !employee.hireDate) return true;
+      const hireDate = dayjs(employee.hireDate);
+      return hireDate.isBetween(dateRange[0], dateRange[1], 'day', '[]');
+    });
+
     if (hiringView === 'monthly') {
-      const monthlyData: { [key: string]: number } = {};
+      // Group by exact date and show in monthly view
+      const dailyData: { [key: string]: { count: number; employees: string[] } } = {};
       
-      employeeData.forEach((employee) => {
+      filteredEmployees.forEach((employee) => {
         if (employee.hireDate) {
-          const month = moment(employee.hireDate).format('MMM YYYY');
-          monthlyData[month] = (monthlyData[month] || 0) + 1;
+          const date = moment(employee.hireDate).format('MMM DD, YYYY');
+          const employeeName = `${employee.firstName} ${employee.lastName}`;
+          
+          if (!dailyData[date]) {
+            dailyData[date] = { count: 0, employees: [] };
+          }
+          dailyData[date].count += 1;
+          dailyData[date].employees.push(employeeName);
         }
       });
 
-      return Object.entries(monthlyData)
-        .map(([month, count]) => ({
-          month,
-          employees: count,
-          date: moment(month, 'MMM YYYY').toDate(),
+      return Object.entries(dailyData)
+        .map(([date, data]) => ({
+          month: date,
+          employees: data.count,
+          employeeNames: data.employees,
+          date: moment(date, 'MMM DD, YYYY').toDate(),
         }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime())
-        .slice(-12)
-        .map(({ month, employees }) => ({ month, employees }));
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
     } else {
       const yearlyData: { [key: string]: number } = {};
       
-      employeeData.forEach((employee) => {
+      filteredEmployees.forEach((employee) => {
         if (employee.hireDate) {
           const year = moment(employee.hireDate).format('YYYY');
           yearlyData[year] = (yearlyData[year] || 0) + 1;
@@ -329,7 +349,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Prepare chart data for contract end dates
   const getContractEndData = () => {
     const monthlyData: { [key: string]: { count: number; employees: string[] } } = {};
     
@@ -337,6 +356,13 @@ const Dashboard: React.FC = () => {
       if (employee.contracts && employee.contracts.length > 0) {
         const latestContract = employee.contracts[employee.contracts.length - 1];
         if (latestContract.contractEndDate) {
+          if (dateRange[0] && dateRange[1]) {
+            const contractEndDate = dayjs(latestContract.contractEndDate);
+            if (!contractEndDate.isBetween(dateRange[0], dateRange[1], 'day', '[]')) {
+              return;
+            }
+          }
+
           const month = moment(latestContract.contractEndDate).format('MMM YYYY');
           const employeeName = `${employee.firstName} ${employee.lastName}`;
           
@@ -360,17 +386,14 @@ const Dashboard: React.FC = () => {
       .slice(-12);
   };
 
-  // Prepare evaluation data from ACTUAL evaluations
   const getEvaluationData = () => {
     const evaluated: string[] = [];
     const pending: string[] = [];
     
-    // Get unique employee IDs that have been evaluated
     const evaluatedEmployeeIds = new Set(
       evaluations.map(evaluation => evaluation.employeeID)
     );
     
-    // Categorize employees based on actual evaluation data
     employeeData.forEach((employee) => {
       const employeeName = `${employee.firstName} ${employee.lastName}`;
       
@@ -394,7 +417,6 @@ const Dashboard: React.FC = () => {
       type: "info",
       icon: <InfoCircleOutlined />,
     },
-    // Evaluation notification
     ...(employeeStats.isEvaluated ? [{
       title: "Evaluation Completed",
       description: `Your performance evaluation has been completed with a score of ${employeeStats.evaluationScore?.toFixed(2) || 'N/A'}`,
@@ -407,7 +429,6 @@ const Dashboard: React.FC = () => {
       type: "info",
       icon: <ClockCircleOutlined />,
     }]),
-    // Contract notifications
     ...(employeeStats.daysUntilContractEnd <= 30 && employeeStats.daysUntilContractEnd > 0 ? [{
       title: "Contract Renewal Reminder",
       description: `Your contract expires in ${employeeStats.daysUntilContractEnd} days`,
@@ -422,164 +443,275 @@ const Dashboard: React.FC = () => {
     }] : []),
   ];
 
-  const renderAdminDashboard = () => {
-    // Find the current admin user in the employee data
-    const currentAdmin = employeeData.find(emp => emp.employeeID === user?.employeeId);
+  const renderAdminDashboard = () => (
+    <>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Total Teachers"
+              value={totalTeachers}
+              prefix={<UserOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Non-Teaching Staff"
+              value={totalNonTeaching}
+              prefix={<TeamOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Total Employees"
+              value={employeeData.length}
+              prefix={<TeamOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic 
+              title="Regular" 
+              value={contractTypeCounts['Regular']} 
+              prefix={<FileProtectOutlined />} 
+            />
+          </Card>
+        </Col>
+      </Row>
 
-    return (
-      <>
-        {/* Welcome section for Admin/HR */}
-        <Row gutter={[16, 16]}>
-          <Col span={24}>
-            <Card className="welcome-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <Avatar size={64} icon={<UserOutlined />} />
-                <div>
-                  <Title level={3} style={{ margin: 0 }}>
-                    {currentAdmin ? `${currentAdmin.firstName} ${currentAdmin.lastName}` : user?.username || 'Administrator'}
-                  </Title>
-                  <Text type="secondary">
-                    {user?.roleId === ROLES.Admin ? 'Administrator' : 'HR'}
-                  </Text>
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Contractual"
+              value={contractTypeCounts['Contractual']}
+              prefix={<FileTextIconOutlined />}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+        <Col xs={24} md={16}>
+          <Card 
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <span><LineChartOutlined /> Analytics Dashboard</span>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {(chartView === 'hire' || chartView === 'contract') && (
+                    <>
+                      <DatePicker 
+                        value={dateRange[0]}
+                        onChange={(date) => setDateRange([date, dateRange[1]])}
+                        format="MMM DD, YYYY"
+                        placeholder="Start Date"
+                        style={{ 
+                          width: '140px',
+                          borderRadius: '6px',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                        }}
+                        allowClear
+                        suffixIcon={<CalendarOutlined style={{ color: '#1890ff' }} />}
+                      />
+                      <DatePicker 
+                        value={dateRange[1]}
+                        onChange={(date) => setDateRange([dateRange[0], date])}
+                        format="MMM DD, YYYY"
+                        placeholder="End Date"
+                        style={{ 
+                          width: '140px',
+                          borderRadius: '6px',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                        }}
+                        allowClear
+                        suffixIcon={<CalendarOutlined style={{ color: '#1890ff' }} />}
+                        disabledDate={(current) => {
+                          if (!dateRange[0]) return false;
+                          return current && current < dateRange[0];
+                        }}
+                      />
+                    </>
+                  )}
+                  {chartView === 'hire' && (
+                    <Select 
+                      value={hiringView} 
+                      onChange={setHiringView}
+                      style={{ 
+                        width: 120,
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <Option value="monthly">Monthly</Option>
+                      <Option value="yearly">Yearly</Option>
+                    </Select>
+                  )}
+                  <Select 
+                    value={chartView} 
+                    onChange={(value) => {
+                      setChartView(value);
+                      if (value === 'evaluation') {
+                        setDateRange([null, null]);
+                      }
+                    }}
+                    style={{ 
+                      width: 200,
+                      borderRadius: '6px'
+                    }}
+                  >
+                    <Option value="hire">Hiring Trends</Option>
+                    <Option value="contract">Contract End Dates</Option>
+                    <Option value="evaluation">Evaluation Status</Option>
+                  </Select>
                 </div>
               </div>
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-          <Col xs={24} sm={12} md={6}>
-            <Card className="dashboard-stat-card">
-              <Statistic
-                title="Total Teachers"
-                value={totalTeachers}
-                prefix={<UserOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card className="dashboard-stat-card">
-              <Statistic
-                title="Non-Teaching Staff"
-                value={totalNonTeaching}
-                prefix={<TeamOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card className="dashboard-stat-card">
-              <Statistic
-                title="Total Employees"
-                value={employeeData.length}
-                prefix={<TeamOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card className="dashboard-stat-card">
-              <Statistic 
-                title="Regular" 
-                value={contractTypeCounts['Regular']} 
-                prefix={<FileProtectOutlined />} 
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} sm={12} md={6}>
-            <Card className="dashboard-stat-card">
-              <Statistic
-                title="Contractual"
-                value={contractTypeCounts['Contractual']}
-                prefix={<FileTextIconOutlined />}
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-          <Col xs={24} md={16}>
-            <Card 
-              title={
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                  <span><LineChartOutlined /> Analytics Dashboard</span>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {chartView === 'hire' && (
-                      <Select 
-                        value={hiringView} 
-                        onChange={setHiringView}
-                        style={{ width: 120 }}
-                      >
-                        <Option value="monthly">Monthly</Option>
-                        <Option value="yearly">Yearly</Option>
-                      </Select>
-                    )}
-                    <Select 
-                      value={chartView} 
-                      onChange={setChartView}
-                      style={{ width: 200 }}
-                    >
-                      <Option value="hire">Hiring Trends</Option>
-                      <Option value="contract">Contract End Dates</Option>
-                      <Option value="evaluation">Evaluation Status</Option>
-                    </Select>
-                  </div>
-                </div>
-              }
-              className="dashboard-calendar-card"
-            >
-              {chartView === 'hire' && (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={getHiringTrendData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="month" 
-                      angle={hiringView === 'monthly' ? -45 : 0}
-                      textAnchor={hiringView === 'monthly' ? 'end' : 'middle'}
-                      height={hiringView === 'monthly' ? 80 : 60}
-                    />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip 
-                      content={({ active, payload }: any) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div style={{ 
-                              background: 'white', 
-                              padding: '10px', 
-                              border: '1px solid #ccc',
-                              borderRadius: '4px'
-                            }}>
-                              <p style={{ margin: 0, fontWeight: 'bold' }}>
-                                {payload[0].payload.month}
-                              </p>
-                              <p style={{ margin: '4px 0 0 0', color: '#1890ff' }}>
-                                Employees Hired: {payload[0].value}
-                              </p>
+            }
+            className="dashboard-calendar-card"
+          >
+            {chartView === 'hire' && (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={getHiringTrendData()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="month" 
+                    angle={hiringView === 'monthly' ? -45 : 0}
+                    textAnchor={hiringView === 'monthly' ? 'end' : 'middle'}
+                    height={hiringView === 'monthly' ? 80 : 60}
+                  />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip 
+                    content={({ active, payload }: any) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div style={{ 
+                            background: 'white', 
+                            padding: '10px', 
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            maxWidth: '300px'
+                          }}>
+                            <p style={{ margin: 0, fontWeight: 'bold' }}>
+                              {data.month}
+                            </p>
+                            <p style={{ margin: '4px 0 0 0', color: '#1890ff' }}>
+                              Employees Hired: {payload[0].value}
+                            </p>
+                            {hiringView === 'monthly' && data.employeeNames && (
+                              <div style={{ borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
+                                <p style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '12px' }}>Employees:</p>
+                                {data.employeeNames.map((name: string, idx: number) => (
+                                  <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
+                                    • {name}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="employees" 
+                    stroke="#1890ff" 
+                    strokeWidth={2}
+                    name="Employees Hired"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+            
+            {chartView === 'contract' && (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={getContractEndData()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" angle={-45} textAnchor="end" height={80} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip 
+                    content={({ active, payload }: any) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div style={{ 
+                            background: 'white', 
+                            padding: '12px', 
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            maxWidth: '300px'
+                          }}>
+                            <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                              {data.month}
+                            </p>
+                            <p style={{ marginBottom: '8px' }}>
+                              Contracts Ending: {data.contracts}
+                            </p>
+                            <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
+                              <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
+                              {data.employees.map((emp: string, idx: number) => (
+                                <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
+                                  • {emp}
+                                </p>
+                              ))}
                             </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="employees" 
-                      stroke="#1890ff" 
-                      strokeWidth={2}
-                      name="Employees Hired"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-              
-              {chartView === 'contract' && (
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend />
+                  <Bar 
+                    dataKey="contracts" 
+                    fill="#ff4d4f" 
+                    name="Contracts Ending"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            
+            {chartView === 'evaluation' && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={getContractEndData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" angle={-45} textAnchor="end" height={80} />
-                    <YAxis allowDecimals={false} />
+                  <PieChart>
+                    <Pie
+                      data={getEvaluationData()}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={(props: any) => {
+                        const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+                        const RADIAN = Math.PI / 180;
+                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        return (
+                          <text
+                            x={x}
+                            y={y}
+                            fill="white"
+                            textAnchor={x > cx ? 'start' : 'end'}
+                            dominantBaseline="central"
+                          >
+                            {`${(percent * 100).toFixed(0)}%`}
+                          </text>
+                        );
+                      }}
+                    >
+                      {getEvaluationData().map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
                     <Tooltip 
                       content={({ active, payload }: any) => {
                         if (active && payload && payload.length) {
@@ -590,13 +722,15 @@ const Dashboard: React.FC = () => {
                               padding: '12px', 
                               border: '1px solid #ccc',
                               borderRadius: '4px',
-                              maxWidth: '300px'
+                              maxWidth: '300px',
+                              maxHeight: '400px',
+                              overflowY: 'auto'
                             }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                                {data.month}
+                              <p style={{ fontWeight: 'bold', marginBottom: '8px', color: data.fill }}>
+                                {data.name}
                               </p>
                               <p style={{ marginBottom: '8px' }}>
-                                Contracts Ending: {data.contracts}
+                                Total: {data.value} employees
                               </p>
                               <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
                                 <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
@@ -613,120 +747,40 @@ const Dashboard: React.FC = () => {
                       }}
                     />
                     <Legend />
-                    <Bar 
-                      dataKey="contracts" 
-                      fill="#ff4d4f" 
-                      name="Contracts Ending"
-                    />
-                  </BarChart>
+                  </PieChart>
                 </ResponsiveContainer>
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card 
+            title={<span><BellOutlined /> Contract End Alerts</span>}
+            className="dashboard-notifications-card"
+          >
+            <List
+              itemLayout="horizontal"
+              dataSource={adminNotifications}
+              locale={{ emptyText: "No upcoming contract endings." }}
+              renderItem={(item) => (
+                <List.Item className="dashboard-notification-item">
+                  <List.Item.Meta
+                    title={<div className="dashboard-notification-title">{item.title}</div>}
+                    description={
+                      <>
+                        <div className="dashboard-notification-description">{item.description}</div>
+                        <div className="dashboard-notification-date">End Date: {item.date}</div>
+                      </>
+                    }
+                  />
+                </List.Item>
               )}
-              
-              {chartView === 'evaluation' && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={getEvaluationData()}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={(props: any) => {
-                          const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-                          const RADIAN = Math.PI / 180;
-                          const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                          return (
-                            <text
-                              x={x}
-                              y={y}
-                              fill="white"
-                              textAnchor={x > cx ? 'start' : 'end'}
-                              dominantBaseline="central"
-                            >
-                              {`${(percent * 100).toFixed(0)}%`}
-                            </text>
-                          );
-                        }}
-                      >
-                        {getEvaluationData().map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        content={({ active, payload }: any) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div style={{ 
-                                background: 'white', 
-                                padding: '12px', 
-                                border: '1px solid #ccc',
-                                borderRadius: '4px',
-                                maxWidth: '300px',
-                                maxHeight: '400px',
-                                overflowY: 'auto'
-                              }}>
-                                <p style={{ fontWeight: 'bold', marginBottom: '8px', color: data.fill }}>
-                                  {data.name}
-                                </p>
-                                <p style={{ marginBottom: '8px' }}>
-                                  Total: {data.value} employees
-                                </p>
-                                <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
-                                  <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                                  {data.employees.map((emp: string, idx: number) => (
-                                    <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
-                                      • {emp}
-                                    </p>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card 
-              title={<span><BellOutlined /> Contract End Alerts</span>}
-              className="dashboard-notifications-card"
-            >
-              <List
-                itemLayout="horizontal"
-                dataSource={adminNotifications}
-                locale={{ emptyText: "No upcoming contract endings." }}
-                renderItem={(item) => (
-                  <List.Item className="dashboard-notification-item">
-                    <List.Item.Meta
-                      title={<div className="dashboard-notification-title">{item.title}</div>}
-                      description={
-                        <>
-                          <div className="dashboard-notification-description">{item.description}</div>
-                          <div className="dashboard-notification-date">End Date: {item.date}</div>
-                        </>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            </Card>
-          </Col>
-        </Row>
-      </>
-    );
-  };
+            />
+          </Card>
+        </Col>
+      </Row>
+    </>
+  );
 
   const renderCoordinatorDashboard = () => (
     <>
@@ -770,7 +824,6 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
         
-        {/* Conditionally render Days Until Contract End only if contract type is NOT Regular */}
         {employeeStats.contractType !== 'Regular' && (
           <Col xs={24} sm={12} md={6}>
             <Card className="dashboard-stat-card">
@@ -914,7 +967,6 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* Evaluation Graph for Coordinator */}
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
         <Col span={24}>
           <Card 
@@ -1041,7 +1093,6 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
         
-        {/* Conditionally render Days Until Contract End only if contract type is NOT Regular */}
         {employeeStats.contractType !== 'Regular' && (
           <Col xs={24} sm={12} md={6}>
             <Card className="dashboard-stat-card">
@@ -1190,13 +1241,12 @@ const Dashboard: React.FC = () => {
   return (
     <div className="dashboard-container">
       <Spin spinning={loading}>
-        {isAdmin ? renderAdminDashboard() : 
+        {canViewAdminDashboard ? renderAdminDashboard() : 
          isCoordinator ? renderCoordinatorDashboard() : 
          renderEmployeeDashboard()}
       </Spin>
     </div>
   );
-  
 };
 
 export default Dashboard;

@@ -44,6 +44,7 @@ import { EducationalAttainmentService } from "../api/EducationalAttainmentServic
 import { EmploymentStatusService } from "../api/EmploymentStatusService";
 import { EducationalAttainmentTypes } from "../types/tblEducationalAttainment";
 import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
+import dayjs from 'dayjs';
 
 const { Option } = Select;
 const { useBreakpoint } = Grid;
@@ -539,7 +540,7 @@ const FacultyPage: React.FC = () => {
     
     form.setFieldsValue({
       employmentStatus: defaultEmploymentStatus ? defaultEmploymentStatus.employmentStatusID : null,
-      hireDate: moment(),
+      hireDate: dayjs(),
       gender: "Male",
       memberGender: "Male",
     });
@@ -570,7 +571,7 @@ const FacultyPage: React.FC = () => {
       positionID: record.positionID ? Number(record.positionID) : null,
       educationalAttainment: record.educationalAttainment ? Number(record.educationalAttainment) : null,
       employmentStatus: record.employmentStatus ? Number(record.employmentStatus) : null,
-      hireDate: record.hireDate ? moment(record.hireDate) : null,
+      hireDate: record.hireDate ? dayjs(record.hireDate) : null,
 
       // Family member fields
       memberFirstName: record.memberFirstName,
@@ -630,7 +631,7 @@ const FacultyPage: React.FC = () => {
           ? moment(values.dateOfBirth).format("YYYY-MM-DD")
           : undefined,
         hireDate: values.hireDate
-          ? moment(values.hireDate).format("YYYY-MM-DD")
+          ? dayjs(values.hireDate).format("YYYY-MM-DD")
           : undefined,
         departmentID: hasDepartment ? Number(values.departmentID) : null, // Set to null if no department
         positionID: positionId,
@@ -1894,102 +1895,6 @@ const FacultyPage: React.FC = () => {
                     <p>No family member information available.</p>
                   </div>
                 )}
-              </TabPane>
-              <TabPane tab="Salary Adjustment" key="6">
-                <div className="salary-adjustment-container">
-                  <div className="salary-section">
-                    <div className="salary-header">
-                      <h3 className="salary-title">SALARY ADJUSTMENT</h3>
-                      <div className="current-salary">
-                        <Form.Item
-                          label="Current Salary"
-                          name="currentSalary"
-                          className="form-item"
-                          rules={[
-                            { required: true, message: "Please enter amount" },
-                          ]}
-                        >
-                          <Input prefix="₱" type="number" placeholder="0.00" />
-                        </Form.Item>
-                      </div>
-                    </div>
-
-                    <div className="adjustment-form">
-                      <div className="form-row">
-                        <Form.Item
-                          label="Adjustment Type"
-                          name="adjustmentType"
-                          className="form-item-full"
-                        >
-                          <Select placeholder="Select adjustment type">
-                            <Option value="regular">Regular Adjustment</Option>
-                            <Option value="promotion">Promotion</Option>
-                            <Option value="bonus">Bonus</Option>
-                            <Option value="evaluation">Evaluation Bonus</Option>
-                            <Option value="allowance">Allowance</Option>
-                            <Option value="deduction">Deduction</Option>
-                          </Select>
-                        </Form.Item>
-                      </div>
-
-                      <div className="form-row">
-                        <Form.Item
-                          label="Amount"
-                          name="adjustmentAmount"
-                          className="form-item"
-                          rules={[
-                            { required: true, message: "Please enter amount" },
-                          ]}
-                        >
-                          <Input prefix="₱" type="number" placeholder="0.00" />
-                        </Form.Item>
-
-                        <Form.Item
-                          label="Effective Date"
-                          name="effectiveDate"
-                          className="form-item"
-                          rules={[
-                            {
-                              required: true,
-                              message: "Please select effective date",
-                            },
-                          ]}
-                        >
-                          <DatePicker style={{ width: "100%" }} />
-                        </Form.Item>
-                      </div>
-
-                      <Form.Item
-                        label="Reason/Description"
-                        name="adjustmentReason"
-                        className="form-item-full"
-                      >
-                        <Input.TextArea
-                          rows={3}
-                          placeholder="Enter reason for salary adjustment..."
-                        />
-                      </Form.Item>
-                    </div>
-
-                    <div className="salary-actions">
-                      <Button
-                        type="primary"
-                        className="submit-salary-adjustment"
-                      >
-                        Submit Salary Adjustment
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Divider />
-
-                  <div className="salary-history">
-                    <h4 className="history-title">Salary Adjustment History</h4>
-                    <div className="history-placeholder">
-                      <p>No salary adjustments recorded yet.</p>
-                    </div>
-                  </div>
-                </div>
               </TabPane>
             </Tabs>
           </>
