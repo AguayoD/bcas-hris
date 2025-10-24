@@ -1,6 +1,7 @@
 export type AuthenticationTypes = {
   token: string;
   user: {
+    departmentId: any;
     userId: number;
     employeeId: number;
     roleId: number;

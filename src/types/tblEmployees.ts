@@ -9,6 +9,9 @@ export interface Employee {
   address?: string;
   positionID?: number;
   departmentID?: number | null; 
+  departmentID2?: number | null;
+  departmentID3?: number | null;
+  roleID?: number;
   employmentStatus?: number;
   hireDate?: Date | string;
 

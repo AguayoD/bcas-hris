@@ -69,6 +69,8 @@ type Employee = {
   firstName: string;
   lastName: string;
   departmentID: number;
+  departmentID2?: number | null;
+  departmentID3?: number | null;
   departmentName?: string;
 };
 
@@ -98,13 +100,19 @@ const EvaluationFormPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.roleId === ROLES.Admin;
   const isHR = user?.roleId === ROLES.HR;
+  const isCoordinator = user?.roleId === ROLES.Coordinator;
 
   // A map from subGroupID → list of items
   const [itemsBySubGroup, setItemsBySubGroup] = useState<Record<number, Item[]>>({});
 
-  // Function to count evaluations for a specific employee
-  const getEvaluationCount = (employeeID: number) => {
-    return evaluations.filter(evalItem => evalItem.employeeID === employeeID).length;
+  // Employee roles mapping (employeeID -> roleId)
+  const [employeeRoles, setEmployeeRoles] = useState<Record<number, number>>({});
+
+  // Function to check if current user has already evaluated a specific employee
+  const hasUserEvaluatedEmployee = (employeeID: number) => {
+    return evaluations.some(evalItem => 
+      evalItem.employeeID === employeeID && evalItem.evaluatorID === userData?.employeeId
+    );
   };
 
   // Get user's department from employees list
@@ -126,7 +134,7 @@ const EvaluationFormPage = () => {
     return userDepartment ? [userDepartment] : [];
   };
 
-  // Filtered employees based on selected department AND evaluation count AND prevent self-evaluation
+  // Filtered employees based on selected department AND prevent self-evaluation AND prevent duplicate evaluation by same user AND prevent coordinators from evaluating other coordinators
   const filteredEmployees = selectedDepartmentID
     ? employees.filter(emp => {
         // Prevent evaluators from evaluating themselves
@@ -134,16 +142,30 @@ const EvaluationFormPage = () => {
           return false;
         }
         
-        if (emp.departmentID === selectedDepartmentID) {
-          const evaluationCount = getEvaluationCount(emp.employeeID);
-          const departmentName = departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase();
-          
-          // For Mix department, allow up to 3 evaluations
-          if (departmentName === 'mix') {
-            return evaluationCount < 3;
+        // Prevent coordinators from evaluating other coordinators
+        if (isCoordinator) {
+          const targetEmployeeRole = employeeRoles[emp.employeeID];
+          if (targetEmployeeRole === ROLES.Coordinator) {
+            return false;
           }
-          // For other departments, allow only 1 evaluation
-          return evaluationCount === 0;
+        }
+        
+        // Check if employee belongs to selected department (primary, secondary, or tertiary)
+        const belongsToDepartment = 
+          emp.departmentID === selectedDepartmentID ||
+          emp.departmentID2 === selectedDepartmentID || 
+          emp.departmentID3 === selectedDepartmentID;
+        
+        if (belongsToDepartment) {
+          // Check if current user has already evaluated this employee
+          const userHasEvaluated = hasUserEvaluatedEmployee(emp.employeeID);
+          
+          // If user has already evaluated this employee, don't show them
+          if (userHasEvaluated) {
+            return false;
+          }
+          
+          return true;
         }
         return false;
       })
@@ -235,6 +257,23 @@ const EvaluationFormPage = () => {
         map[entry.subGroupID] = entry.items;
       });
       setItemsBySubGroup(map);
+
+      // Fetch user data to get roles for all employees
+      try {
+        const usersResponse = await axios.get("/Users");
+        const users = usersResponse.data;
+        
+        const rolesMap: Record<number, number> = {};
+        users.forEach((user: any) => {
+          if (user.employeeId) {
+            rolesMap[user.employeeId] = user.roleId;
+          }
+        });
+        
+        setEmployeeRoles(rolesMap);
+      } catch (error) {
+        console.error("Error fetching user roles:", error);
+      }
       
     } catch (err) {
       console.error("Error loading data:", err);
@@ -270,6 +309,21 @@ const EvaluationFormPage = () => {
     // Additional check to prevent self-evaluation
     if (selectedEmployeeID === userData?.employeeId) {
       message.error("You cannot evaluate yourself.");
+      return;
+    }
+
+    // Additional check to prevent coordinators from evaluating other coordinators
+    if (isCoordinator) {
+      const targetEmployeeRole = employeeRoles[selectedEmployeeID];
+      if (targetEmployeeRole === ROLES.Coordinator) {
+        message.error("Coordinators cannot evaluate other coordinators.");
+        return;
+      }
+    }
+
+    // Additional check to prevent duplicate evaluation
+    if (hasUserEvaluatedEmployee(selectedEmployeeID)) {
+      message.error("You have already evaluated this employee.");
       return;
     }
 
@@ -594,7 +648,7 @@ const EvaluationFormPage = () => {
                   className="form-control"
                 >
                   <option value="" disabled>
-                    -- Select a department --
+                    Select a department
                   </option>
                   {availableDepartments.map((dept) => (
                     <option key={dept.departmentID} value={dept.departmentID}>
@@ -630,14 +684,19 @@ const EvaluationFormPage = () => {
                 </option>
                 {filteredEmployees.length > 0 ? (
                   filteredEmployees.map((emp) => {
-                    const evaluationCount = getEvaluationCount(emp.employeeID);
-                    const isMixDepartment = departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase() === 'mix';
+                    // Get all department names
+                    const primaryDept = departments.find(d => d.departmentID === emp.departmentID)?.departmentName;
+                    const secondaryDept = emp.departmentID2 ? departments.find(d => d.departmentID === emp.departmentID2)?.departmentName : null;
+                    const tertiaryDept = emp.departmentID3 ? departments.find(d => d.departmentID === emp.departmentID3)?.departmentName : null;
+                    
+                    // Create departments string
+                    const departmentsString = [primaryDept, secondaryDept, tertiaryDept]
+                      .filter(Boolean)
+                      .join(' / ');
                     
                     return (
                       <option key={emp.employeeID} value={emp.employeeID}>
-                        {emp.firstName} {emp.lastName}
-                        {emp.departmentName && ` (${emp.departmentName})`}
-                        {isMixDepartment && evaluationCount > 0 && ` - Evaluated ${evaluationCount}/3 times`}
+                        {emp.firstName} {emp.lastName} ({departmentsString})
                       </option>
                     );
                   })
@@ -649,9 +708,10 @@ const EvaluationFormPage = () => {
               </select>
               {selectedDepartmentID && filteredEmployees.length === 0 && (
                 <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
-                  {departments.find(d => d.departmentID === selectedDepartmentID)?.departmentName?.toLowerCase() === 'mix' 
-                    ? "All employees in this department have already been evaluated 3 times or you cannot evaluate yourself."
-                    : "All employees in this department have already been evaluated or you cannot evaluate yourself."}
+                  {isCoordinator 
+                    ? "No employees available for evaluation in this department, or you have already evaluated all available employees. Note: Coordinators cannot evaluate other coordinators."
+                    : "No employees available for evaluation in this department, or you have already evaluated all employees."
+                  }
                 </div>
               )}
             </div>

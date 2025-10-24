@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Spin, Typography, Button, message, Select, Modal } from 'antd';
+import { Table, Spin, Typography, Button, message, Select, Modal, Tag } from 'antd';
 import { RedoOutlined, PrinterOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import axios from '../api/_axiosInstance';
@@ -31,7 +31,7 @@ interface EvalWithNames {
   evaluationDate: string;
   finalScore: number;
   createdAt: string;
-  departmentName?: string;
+  employeeDepartments?: string[];
 }
 
 const EvaluatedPage: React.FC = () => {
@@ -54,42 +54,93 @@ const EvaluatedPage: React.FC = () => {
   const fetchEvaluations = async () => {
     try {
       const res = await axios.get('/Evaluations');
-      // Fetch department information for each evaluation
-      const evaluationsWithDepartments = await Promise.all(
+      
+      // Fetch all departments first to create a mapping
+      let departmentMap = new Map();
+      try {
+        const departmentsRes = await axios.get('/Departments');
+        if (departmentsRes.data && Array.isArray(departmentsRes.data)) {
+          departmentsRes.data.forEach(dept => {
+            if (dept.departmentID && dept.departmentName) {
+              departmentMap.set(dept.departmentID, dept.departmentName);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+
+      // Fetch detailed information for each evaluation
+      const evaluationsWithDetails = await Promise.all(
         res.data.map(async (evaluation: EvalWithNames) => {
           try {
-            // Get employee details to find department
+            // Get employee details to find all departments
             const employeeRes = await axios.get(`/Employees/${evaluation.employeeID}`);
             const employeeData = employeeRes.data;
-            
-            // The department name might be in different places in the response
-            // Try these common patterns:
-            let departmentName = 'N/A';
-            
-            if (employeeData.departmentName) {
-              departmentName = employeeData.departmentName;
-            } else if (employeeData.department && employeeData.department.departmentName) {
-              departmentName = employeeData.department.departmentName;
-            } else if (employeeData.departmentID) {
-              // If we only have departmentID, we need to fetch the department separately
-              const deptRes = await axios.get(`/Department/${employeeData.departmentID}`);
-              departmentName = deptRes.data.departmentName || 'N/A';
+
+            // Get all department IDs from employee (filter out null/undefined and 0)
+            const employeeDeptIDs = [
+              employeeData.departmentID,
+              employeeData.departmentID2, 
+              employeeData.departmentID3
+            ].filter(id => id != null && id !== 0);
+
+            // Get employee department NAMES using the department map
+            const employeeDeptNames: string[] = [];
+
+            for (const deptID of employeeDeptIDs) {
+              // First try to get from the department map
+              const deptNameFromMap = departmentMap.get(deptID);
+              if (deptNameFromMap) {
+                employeeDeptNames.push(deptNameFromMap);
+              } else {
+                // If not in map, try to fetch the department directly
+                try {
+                  const deptRes = await axios.get(`/Department/${deptID}`);
+                  const deptName = deptRes.data?.departmentName || deptRes.data?.name;
+                  if (deptName) {
+                    employeeDeptNames.push(deptName);
+                    // Also add to map for future use
+                    departmentMap.set(deptID, deptName);
+                  } else {
+                    employeeDeptNames.push(`Department ${deptID}`);
+                  }
+                } catch (error) {
+                  console.error(`Error fetching department ${deptID}:`, error);
+                  employeeDeptNames.push(`Department ${deptID}`);
+                }
+              }
             }
-            
+
+            // If no departments found, check if employee data already has department names
+            if (employeeDeptNames.length === 0) {
+              if (employeeData.departmentName) {
+                employeeDeptNames.push(employeeData.departmentName);
+              }
+              if (employeeData.departmentID2Name) {
+                employeeDeptNames.push(employeeData.departmentID2Name);
+              }
+              if (employeeData.departmentID3Name) {
+                employeeDeptNames.push(employeeData.departmentID3Name);
+              }
+            }
+
+            console.log(`Employee ${evaluation.employeeName} departments:`, employeeDeptNames);
+
             return {
               ...evaluation,
-              departmentName
+              employeeDepartments: employeeDeptNames.length > 0 ? employeeDeptNames : ['No Department']
             };
           } catch (error) {
-            console.error(`Error fetching department for employee ${evaluation.employeeID}:`, error);
+            console.error(`Error fetching details for evaluation ${evaluation.evaluationID}:`, error);
             return {
               ...evaluation,
-              departmentName: 'N/A'
+              employeeDepartments: ['No Department']
             };
           }
         })
       );
-      setEvaluations(evaluationsWithDepartments);
+      setEvaluations(evaluationsWithDetails);
     } catch (error) {
       console.error('Error fetching evaluations:', error);
       message.error('Failed to fetch evaluations');
@@ -98,32 +149,32 @@ const EvaluatedPage: React.FC = () => {
     }
   };
 
-  // Get unique departments for the filter
-  const departments = Array.from(new Set(evaluations.map(evalItem => evalItem.departmentName).filter(Boolean))) as string[];
+  // Get unique departments for the filter (from all employee departments)
+  const allDepartments = evaluations.flatMap(evalItem => evalItem.employeeDepartments || []);
+  const departments = Array.from(new Set(allDepartments)).filter(dept => dept && dept !== 'No Department') as string[];
 
   // Sort evaluations by finalScore (highest to lowest)
   const sortedEvaluations = [...evaluations].sort((a, b) => b.finalScore - a.finalScore);
 
-  // Filter evaluations based on selected department and maintain sort order
+  // Filter evaluations based on selected department
   const filteredEvaluations = selectedDepartment === 'all' 
     ? sortedEvaluations 
-    : sortedEvaluations.filter(evalItem => evalItem.departmentName === selectedDepartment);
+    : sortedEvaluations.filter(evalItem => 
+        evalItem.employeeDepartments?.includes(selectedDepartment)
+      );
 
   const handleReset = async () => {
     setResetting(true);
     try {
       console.log('Sending reset request to /Evaluations/reset');
       
-      // Call your reset API endpoint
       const response = await axios.post('/Evaluations/reset');
       console.log('Reset response:', response);
       
       message.success('Evaluation data reset successfully');
       
-      // Refresh the evaluations data
       await fetchEvaluations();
       
-      // Trigger a custom event to notify Dashboard about the reset
       window.dispatchEvent(new CustomEvent('evaluationsReset'));
     } catch (error: any) {
       console.error('Error resetting evaluations:', error);
@@ -187,6 +238,7 @@ const EvaluatedPage: React.FC = () => {
           th { background-color: #f2f2f2; font-weight: bold; }
           tr:nth-child(even) { background-color: #f9f9f9; }
           .score-cell { text-align: center; }
+          .departments-cell { max-width: 200px; }
           @media print {
             body { margin: 0; }
             .no-print { display: none; }
@@ -229,7 +281,7 @@ const EvaluatedPage: React.FC = () => {
           <thead>
             <tr>
               <th>Employee</th>
-              <th>Department</th>
+              <th>Departments</th>
               <th>Evaluator</th>
               <th>Evaluation Date</th>
               <th>Final Score</th>
@@ -241,7 +293,7 @@ const EvaluatedPage: React.FC = () => {
                 (evaluation) => `
               <tr>
                 <td>${evaluation.employeeName || 'N/A'}</td>
-                <td>${evaluation.departmentName || 'N/A'}</td>
+                <td class="departments-cell">${(evaluation.employeeDepartments || ['No Department']).join(', ')}</td>
                 <td>${evaluation.evaluatorName || 'N/A'}</td>
                 <td>${evaluation.evaluationDate ? moment(evaluation.evaluationDate).format("YYYY-MM-DD") : 'N/A'}</td>
                 <td class="score-cell"><strong>${evaluation.finalScore.toFixed(2)}</strong></td>
@@ -296,10 +348,20 @@ const EvaluatedPage: React.FC = () => {
       key: 'employeeName',
     },
     {
-      title: 'Department',
-      dataIndex: 'departmentName',
-      key: 'departmentName',
-      render: (department: string) => department || 'N/A',
+      title: 'Departments',
+      dataIndex: 'employeeDepartments',
+      key: 'employeeDepartments',
+      render: (departments: string[]) => (
+        departments && departments.length > 0 ? (
+          <div>
+            {departments.map((dept, index) => (
+              <Tag key={index} color="blue" style={{ margin: '2px' }}>
+                {dept}
+              </Tag>
+            ))}
+          </div>
+        ) : 'No Department'
+      ),
     },
     {
       title: 'Evaluator',
@@ -391,7 +453,7 @@ const EvaluatedPage: React.FC = () => {
           <>
             <p><strong>Evaluator:</strong> {selectedEvaluation.evaluatorName}</p>
             <p><strong>Employee Evaluated:</strong> {selectedEvaluation.employeeName}</p>
-            <p><strong>Department:</strong> {selectedEvaluation.departmentName || 'N/A'}</p>
+            <p><strong>Departments:</strong> {(selectedEvaluation.employeeDepartments || ['No Department']).join(', ')}</p>
             <p><strong>Final Score:</strong> {selectedEvaluation.finalScore.toFixed(2)}</p>
             <p><strong>Evaluation Date:</strong> {new Date(selectedEvaluation.evaluationDate).toLocaleDateString()}</p>
 
@@ -427,7 +489,6 @@ const EvaluatedPage: React.FC = () => {
       </Modal>
     </div>
   );
-  
 };
 
 export default EvaluatedPage;
