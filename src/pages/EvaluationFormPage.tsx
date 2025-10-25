@@ -74,6 +74,7 @@ type Employee = {
   departmentID2?: number | null;
   departmentID3?: number | null;
   departmentName?: string;
+  position?: string; // Add position field
 };
 
 const scoreChoices: ScoreChoice[] = [
@@ -156,7 +157,13 @@ const EvaluationFormPage = () => {
   const shouldShowNonTeachingItems = (employeeID: number) => {
     if (!employeeID) return true;
     const role = employeeRoles[employeeID];
-    // Only non-teaching employees should show non-teaching items
+    
+    // Coordinators should never see non-teaching items
+    if (isCoordinator) {
+      return false;
+    }
+    
+    // Only non-teaching employees should show non-teaching items for other roles
     return role === ROLES.NonTeaching || role === ROLES.Admin || role === ROLES.HR;
   };
 
@@ -848,7 +855,19 @@ const EvaluationFormPage = () => {
                 </option>
                 {filteredEmployees.length > 0 ? (
                   filteredEmployees.map((emp) => {
-                    // For Non-teachers department, show which department they actually belong to
+                    const role = employeeRoles[emp.employeeID];
+                    const isNonTeaching = role === ROLES.NonTeaching;
+                    
+                    // For Non-teaching employees, show position instead of role and department
+                    if (isNonTeaching) {
+                      return (
+                        <option key={emp.employeeID} value={emp.employeeID}>
+                          {emp.firstName} {emp.lastName} - {emp.position || 'Non-Teaching Staff'}
+                        </option>
+                      );
+                    }
+                    
+                    // For other employees, show role and department as before
                     const primaryDept = departments.find(d => d.departmentID === emp.departmentID)?.departmentName;
                     const secondaryDept = emp.departmentID2 ? departments.find(d => d.departmentID === emp.departmentID2)?.departmentName : null;
                     const tertiaryDept = emp.departmentID3 ? departments.find(d => d.departmentID === emp.departmentID3)?.departmentName : null;
@@ -857,14 +876,7 @@ const EvaluationFormPage = () => {
                       .filter(Boolean)
                       .join(' / ');
                     
-                    // If viewing Non-teachers department, show their actual department affiliation
-                    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
-                      departmentsString = departmentsString || 'No department assigned';
-                    }
-                    
-                    const role = employeeRoles[emp.employeeID];
                     const roleName = role === ROLES.Teaching ? 'Teaching' : 
-                                   role === ROLES.NonTeaching ? 'Non-Teaching' : 
                                    role === ROLES.Coordinator ? 'Coordinator' : 
                                    role === ROLES.Admin ? 'Admin' : 
                                    role === ROLES.HR ? 'HR' : 'Unknown';
@@ -1087,8 +1099,8 @@ const EvaluationFormPage = () => {
                     </div>
                   )}
 
-                  {/* Non-Teaching Items Section */}
-                  {(!selectedEmployeeID || shouldShowNonTeachingItems(selectedEmployeeID)) && (
+                  {/* Non-Teaching Items Section - Completely hidden from Coordinators */}
+                  {!isCoordinator && (!selectedEmployeeID || shouldShowNonTeachingItems(selectedEmployeeID)) && (
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                         <strong>Non-Teaching Evaluation Items:</strong>
