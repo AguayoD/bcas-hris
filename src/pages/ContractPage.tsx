@@ -4,8 +4,7 @@ import {
   UploadOutlined,
   FileOutlined,
   FilePdfOutlined,
-  FileWordOutlined,
-  FileExcelOutlined,
+  FileImageOutlined,
   DownloadOutlined,
   EditOutlined,
   SearchOutlined,
@@ -31,7 +30,8 @@ import {
   Card,
   Tag,
   Divider,
-  Popconfirm
+  Popconfirm,
+  Spin
 } from "antd";
 import type { UploadFile, UploadProps } from "antd";
 import dayjs, { Dayjs } from 'dayjs';
@@ -64,15 +64,36 @@ interface ContractUpdateFormData {
   contractType?: string;
 }
 
-const getFileIcon = (fileType?: string) => {
+const getFileIcon = (fileType?: string, fileName?: string) => {
+  // Check by file extension first
+  if (fileName) {
+    const ext = fileName.toLowerCase().split('.').pop();
+    if (ext === 'pdf') return <FilePdfOutlined />;
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext!)) return <FileImageOutlined />;
+  }
+  
+  // Fallback to file type checking
   if (!fileType) return <FileOutlined />;
   
   if (fileType.includes('pdf')) return <FilePdfOutlined />;
-  if (fileType.includes('word') || fileType.includes('document')) return <FileWordOutlined />;
-  if (fileType.includes('excel') || fileType.includes('sheet')) return <FileExcelOutlined />;
-  if (fileType.includes('image')) return <FileOutlined />;
+  if (fileType.includes('image')) return <FileImageOutlined />;
   
   return <FileOutlined />;
+};
+
+// Helper function to extract text from different file types
+const extractTextFromBlob = async (_blob: Blob, fileType: string): Promise<string> => {
+  return new Promise((resolve, _reject) => {
+    if (fileType.includes('pdf')) {
+      // For PDF files - we'll use the blob URL directly in iframe
+      resolve('PDF content is displayed in the embedded viewer below.');
+    } else if (fileType.includes('image')) {
+      resolve('Image file - preview available below.');
+    } else {
+      // For other file types (shouldn't happen with our restrictions)
+      resolve('This file type is not supported. Only PDF and image files are allowed.');
+    }
+  });
 };
 
 const ContractPage: React.FC = () => {
@@ -88,8 +109,11 @@ const ContractPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewFile, setPreviewFile] = useState<UploadFile | null>(null);
+  const [previewFile, setPreviewFile] = useState<(UploadFile & { blob?: Blob }) | null>(null);
+  const [, setFileContent] = useState<string>('');
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeWithContracts | null>(null);
   const [updatingContract, setUpdatingContract] = useState<any>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -116,6 +140,7 @@ const ContractPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
       const [allEmployees, departmentData] = await Promise.all([
         EmployeeService.getAll(),
@@ -166,8 +191,9 @@ const ContractPage: React.FC = () => {
           }))
       );
     } catch (error) {
+      console.error("Failed to fetch data:", error);
+      setError("Failed to load contract data");
       message.error("Failed to fetch data");
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -237,23 +263,86 @@ const ContractPage: React.FC = () => {
     setFilteredEmployees(filtered);
   };
 
-  // Remove unused getBase64 function since we're using direct URLs now
-
   const handlePreview = async (contract: any) => {
     try {
-      // Use the download endpoint for preview to avoid path issues
-      const fileInfo = await ContractService.getFileUrl(contract.contractID!);
+      setIsLoadingPreview(true);
+      setFileContent('');
+
+      // Try to get file blob for better preview handling
+      const fileInfo = await ContractService.getFileBlob(contract.contractID!);
+      
+      if (!fileInfo.blob) {
+        message.warning("No file available for preview");
+        setIsLoadingPreview(false);
+        return;
+      }
+      
+      // Create object URL from blob for preview
+      const blobUrl = URL.createObjectURL(fileInfo.blob);
+      
+      // Try to extract text content from the file
+      if (fileInfo.fileType.includes('pdf') || fileInfo.fileType.includes('image')) {
+        try {
+          const text = await extractTextFromBlob(fileInfo.blob, fileInfo.fileType);
+          setFileContent(text);
+        } catch (textError) {
+          console.error("Failed to extract text content:", textError);
+          // Continue without text content
+        }
+      }
       
       setPreviewFile({
         uid: contract.contractID?.toString() || '',
-        name: contract.fileName || 'contract',
+        name: fileInfo.fileName || contract.fileName || 'contract',
         status: 'done',
-        url: fileInfo.fileUrl, // This now uses the API download URL
-      } as UploadFile);
+        url: blobUrl,
+        type: fileInfo.fileType,
+        blob: fileInfo.blob
+      });
       setPreviewOpen(true);
     } catch (error) {
-      console.error("Failed to get file URL:", error);
-      message.error("Unable to preview contract file");
+      console.error("Failed to get file for preview:", error);
+      
+      // Fallback to URL-based preview
+      try {
+        const fileInfo = await ContractService.getFileUrl(contract.contractID!);
+        
+        if (!fileInfo.fileUrl) {
+          message.warning("No file available for preview");
+          return;
+        }
+        
+        setPreviewFile({
+          uid: contract.contractID?.toString() || '',
+          name: contract.fileName || 'contract',
+          status: 'done',
+          url: fileInfo.fileUrl,
+          type: fileInfo.fileType
+        });
+        setPreviewOpen(true);
+      } catch (urlError) {
+        console.error("Failed to get file URL:", urlError);
+        message.error("Unable to preview contract file");
+      }
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleDownloadFromBlob = (blob: Blob, fileName: string) => {
+    try {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      message.success("Download started");
+    } catch (error) {
+      console.error("Failed to download file from blob:", error);
+      message.error("Failed to download file");
     }
   };
 
@@ -312,7 +401,6 @@ const ContractPage: React.FC = () => {
         }
 
         try {
-          // Remove unused variable by not assigning to a const
           await ContractService.upload(
             editingEmployee.employeeID!,
             file,
@@ -331,6 +419,8 @@ const ContractPage: React.FC = () => {
         } finally {
           setUploading(false);
         }
+      } else {
+        message.error("Please select a file to upload");
       }
     } catch (error) {
       console.error("Validation failed:", error);
@@ -370,7 +460,6 @@ const ContractPage: React.FC = () => {
         }
 
         try {
-          // Remove unused variable by not assigning to a const
           await ContractService.update(
             updatingContract.contractID!,
             updateData
@@ -416,11 +505,26 @@ const ContractPage: React.FC = () => {
   };
 
   const beforeUpload: UploadProps['beforeUpload'] = (file) => {
+    // Check file type - only allow PDF and images
+    const isPdf = file.type === 'application/pdf';
+    const isImage = file.type.startsWith('image/');
+    const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
+    
+    const isAllowedType = isPdf || (isImage && allowedImageTypes.includes(file.type));
+    
+    if (!isAllowedType) {
+      message.error('You can only upload PDF and image files (JPG, PNG, GIF, WebP, BMP)!');
+      return Upload.LIST_IGNORE;
+    }
+
+    // Check file size (10MB limit)
     const isLt10M = file.size / 1024 / 1024 < 10;
     if (!isLt10M) {
       message.error('File must be smaller than 10MB!');
       return Upload.LIST_IGNORE;
     }
+    
+    // Return false to prevent auto upload
     return false;
   };
 
@@ -428,45 +532,102 @@ const ContractPage: React.FC = () => {
     if (!previewFile) return null;
 
     const fileType = previewFile.type || '';
-    const fileUrl = previewFile.url || previewFile.preview || '';
+    const fileUrl = previewFile.url || '';
+    const fileName = previewFile.name || 'contract';
 
-    if (fileType.includes('image')) {
+    if (isLoadingPreview) {
       return (
-        <Image
-          width="100%"
-          src={fileUrl}
-          alt="Contract preview"
-          style={{ maxHeight: '70vh', objectFit: 'contain' }}
-        />
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Spin size="large" />
+          <p style={{ marginTop: 16 }}>Loading file content...</p>
+        </div>
       );
     }
 
-    if (fileType.includes('pdf')) {
+    // Handle PDF files
+    if (fileType.includes('pdf') || fileName.toLowerCase().endsWith('.pdf')) {
       return (
-        <iframe 
-          src={fileUrl} 
-          width="100%" 
-          height="600px" 
-          style={{ border: 'none' }}
-          title="PDF Preview"
-        />
+        <div className="file-content-preview file-type-pdf">
+          <div className="file-content-header">
+            <Text strong>PDF Document</Text>
+            <Button 
+              type="primary" 
+              icon={<DownloadOutlined />}
+              onClick={() => previewFile.blob ? handleDownloadFromBlob(previewFile.blob, fileName) : window.open(fileUrl, '_blank')}
+              className="download-button"
+            >
+              Download PDF
+            </Button>
+          </div>
+          <div style={{ height: '500px' }}>
+            <iframe 
+              src={fileUrl} 
+              width="100%" 
+              height="100%" 
+              style={{ border: 'none' }}
+              title="PDF Preview"
+              className="pdf-viewer-container"
+            />
+          </div>
+        </div>
       );
     }
 
-    // For other file types, show download option
+    // Handle image files
+    if (fileType.includes('image') || 
+        fileName.toLowerCase().endsWith('.jpg') || 
+        fileName.toLowerCase().endsWith('.jpeg') || 
+        fileName.toLowerCase().endsWith('.png') || 
+        fileName.toLowerCase().endsWith('.gif') ||
+        fileName.toLowerCase().endsWith('.webp') ||
+        fileName.toLowerCase().endsWith('.bmp')) {
+      return (
+        <div className="file-content-preview file-type-image">
+          <div className="file-content-header">
+            <Text strong>Image Preview</Text>
+            <Button 
+              type="primary" 
+              icon={<DownloadOutlined />}
+              onClick={() => previewFile.blob ? handleDownloadFromBlob(previewFile.blob, fileName) : window.open(fileUrl, '_blank')}
+              className="download-button"
+            >
+              Download Image
+            </Button>
+          </div>
+          <div className="image-preview-container">
+            <Image
+              width="100%"
+              src={fileUrl}
+              alt="Contract preview"
+              style={{ maxWidth: '100%', objectFit: 'contain' }}
+              fallback="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xOCAxNUg2VjlIMThWMTVaIiBmaWxsPSIjQjhCOEI4Ii8+CjxjaXJjbGUgY3g9IjEyIiBjeT0iMTAiIHI9IjIiIGZpbGw9IiNCOEI4QjgiLz4KPC9zdmc+"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // For unsupported file types (shouldn't happen with our restrictions)
     return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        {getFileIcon(fileType)}
-        <p style={{ marginTop: 16 }}>
-          {previewFile.name || 'Contract File'}
-        </p>
-        <Button 
-          type="primary" 
-          onClick={() => window.open(fileUrl, '_blank')}
-          style={{ marginTop: 16 }}
-        >
-          Download File
-        </Button>
+      <div className="file-content-preview file-type-other">
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <FileOutlined style={{ fontSize: 64, color: '#ff4d4f' }} />
+          <p style={{ marginTop: 16, fontSize: '16px' }}>
+            {fileName}
+          </p>
+          <p style={{ marginTop: 8, color: '#666', marginBottom: '24px' }}>
+            This file type is not supported. Only PDF and image files are allowed.
+          </p>
+          <Button 
+            type="primary" 
+            icon={<DownloadOutlined />}
+            onClick={() => previewFile.blob ? handleDownloadFromBlob(previewFile.blob, fileName) : window.open(fileUrl, '_blank')}
+            style={{ marginTop: 16 }}
+            className="download-button"
+          >
+            Download File
+          </Button>
+        </div>
       </div>
     );
   };
@@ -639,6 +800,7 @@ const ContractPage: React.FC = () => {
                 setEditingEmployee(record);
                 setSelectedContractType('Regular');
                 form.resetFields();
+                setFileList([]);
               }}
               size="small"
             >
@@ -651,6 +813,28 @@ const ContractPage: React.FC = () => {
       ),
     },
   ];
+
+  if (error) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        height: '50vh',
+        flexDirection: 'column'
+      }}>
+        <Text type="danger" style={{ fontSize: '18px', marginBottom: '16px' }}>
+          Error Loading Data
+        </Text>
+        <Text type="secondary" style={{ marginBottom: '16px' }}>
+          {error}
+        </Text>
+        <Button type="primary" onClick={fetchData}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   if (!hasAccess) {
     return (
@@ -693,8 +877,7 @@ const ContractPage: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={filteredEmployees}
-        rowKey="employeeID"
+        dataSource={filteredEmployees.map(emp => ({ ...emp, key: emp.employeeID }))}
         loading={loading}
         pagination={{ pageSize: 10 }}
       />
@@ -774,15 +957,17 @@ const ContractPage: React.FC = () => {
           </Form.Item>
           <Form.Item 
             label="Contract Document"
-            rules={[{ required: true, message: 'Please select a file' }]}
+            rules={[{ required: true, message: 'Please select a PDF or image file' }]}
+            extra="Only PDF and image files (JPG, PNG, GIF, WebP, BMP) are allowed. Maximum file size: 10MB."
           >
             <Upload
               beforeUpload={beforeUpload}
               fileList={fileList}
               onChange={({ fileList }) => setFileList(fileList)}
               maxCount={1}
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,application/pdf,image/*"
             >
-              <Button icon={<UploadOutlined />}>Select File</Button>
+              <Button icon={<UploadOutlined />}>Select PDF or Image File</Button>
             </Upload>
           </Form.Item>
         </Form>
@@ -856,14 +1041,18 @@ const ContractPage: React.FC = () => {
               <Option value="Part-Time">Part-Time</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="Contract Document (Optional)">
+          <Form.Item 
+            label="Contract Document (Optional)"
+            extra="Only PDF and image files (JPG, PNG, GIF, WebP, BMP) are allowed. Maximum file size: 10MB."
+          >
             <Upload
               beforeUpload={beforeUpload}
               fileList={updateFileList}
               onChange={({ fileList }) => setUpdateFileList(fileList)}
               maxCount={1}
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,application/pdf,image/*"
             >
-              <Button icon={<UploadOutlined />}>Select File</Button>
+              <Button icon={<UploadOutlined />}>Select PDF or Image File</Button>
             </Upload>
             <Text type="secondary">Leave empty to keep current file</Text>
           </Form.Item>
@@ -873,13 +1062,26 @@ const ContractPage: React.FC = () => {
       {/* File Preview Modal */}
       <Modal
         open={previewOpen}
-        title={previewFile?.name || 'Contract Preview'}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {previewFile && getFileIcon(previewFile.type, previewFile.name)}
+            <span>{previewFile?.name || 'Contract Preview'}</span>
+          </div>
+        }
         footer={null}
         onCancel={() => {
           setPreviewOpen(false);
+          // Clean up blob URL to prevent memory leaks
+          if (previewFile?.url && previewFile.url.startsWith('blob:')) {
+            URL.revokeObjectURL(previewFile.url);
+          }
           setPreviewFile(null);
+          setFileContent('');
+          setIsLoadingPreview(false);
         }}
-        width={800}
+        width={900}
+        style={{ top: 20 }}
+        bodyStyle={{ padding: 0 }}
       >
         {renderFilePreview()}
       </Modal>

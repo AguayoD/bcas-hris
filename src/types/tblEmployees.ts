@@ -11,6 +11,7 @@ export interface Employee {
   departmentID?: number | null; 
   departmentID2?: number | null;
   departmentID3?: number | null;
+  isTeaching?: boolean;
   roleID?: number;
   employmentStatus?: number;
   hireDate?: Date | string;
