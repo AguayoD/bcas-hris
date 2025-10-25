@@ -322,55 +322,70 @@ const Dashboard: React.FC = () => {
   const employeeStats = getEmployeeStats();
 
   const getHiringTrendData = () => {
+    // Filter employees by date range
     const filteredEmployees = employeeData.filter((employee) => {
-      if (!dateRange[0] || !dateRange[1] || !employee.hireDate) return true;
+      if (!employee.hireDate) return false;
+      
       const hireDate = dayjs(employee.hireDate);
+      
+      // If no date range is selected, include all employees
+      if (!dateRange[0] || !dateRange[1]) return true;
+      
+      // Filter by the selected date range
       return hireDate.isBetween(dateRange[0], dateRange[1], 'day', '[]');
     });
 
     if (hiringView === 'monthly') {
-      // Group by exact date and show in monthly view
-      const dailyData: { [key: string]: { count: number; employees: string[] } } = {};
+      // Group by month for monthly view
+      const monthlyData: { [key: string]: { count: number; employees: string[] } } = {};
       
       filteredEmployees.forEach((employee) => {
         if (employee.hireDate) {
-          const date = moment(employee.hireDate).format('MMM DD, YYYY');
+          const monthKey = moment(employee.hireDate).format('MMM YYYY');
           const employeeName = `${employee.firstName} ${employee.lastName}`;
           
-          if (!dailyData[date]) {
-            dailyData[date] = { count: 0, employees: [] };
+          if (!monthlyData[monthKey]) {
+            monthlyData[monthKey] = { count: 0, employees: [] };
           }
-          dailyData[date].count += 1;
-          dailyData[date].employees.push(employeeName);
+          monthlyData[monthKey].count += 1;
+          monthlyData[monthKey].employees.push(employeeName);
         }
       });
 
-      return Object.entries(dailyData)
-        .map(([date, data]) => ({
-          month: date,
+      // Convert to array and sort by date
+      return Object.entries(monthlyData)
+        .map(([month, data]) => ({
+          month,
           employees: data.count,
           employeeNames: data.employees,
-          date: moment(date, 'MMM DD, YYYY').toDate(),
+          date: moment(month, 'MMM YYYY').toDate(),
         }))
         .sort((a, b) => a.date.getTime() - b.date.getTime());
     } else {
-      const yearlyData: { [key: string]: number } = {};
+      // Yearly view
+      const yearlyData: { [key: string]: { count: number; employees: string[] } } = {};
       
       filteredEmployees.forEach((employee) => {
         if (employee.hireDate) {
           const year = moment(employee.hireDate).format('YYYY');
-          yearlyData[year] = (yearlyData[year] || 0) + 1;
+          const employeeName = `${employee.firstName} ${employee.lastName}`;
+          
+          if (!yearlyData[year]) {
+            yearlyData[year] = { count: 0, employees: [] };
+          }
+          yearlyData[year].count += 1;
+          yearlyData[year].employees.push(employeeName);
         }
       });
 
       return Object.entries(yearlyData)
-        .map(([year, count]) => ({
+        .map(([year, data]) => ({
           month: year,
-          employees: count,
+          employees: data.count,
+          employeeNames: data.employees,
           date: moment(year, 'YYYY').toDate(),
         }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime())
-        .map(({ month, employees }) => ({ month, employees }));
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
     }
   };
 
@@ -381,6 +396,7 @@ const Dashboard: React.FC = () => {
       if (employee.contracts && employee.contracts.length > 0) {
         const latestContract = employee.contracts[employee.contracts.length - 1];
         if (latestContract.contractEndDate) {
+          // Filter by date range if selected
           if (dateRange[0] && dateRange[1]) {
             const contractEndDate = dayjs(latestContract.contractEndDate);
             if (!contractEndDate.isBetween(dateRange[0], dateRange[1], 'day', '[]')) {
@@ -408,7 +424,7 @@ const Dashboard: React.FC = () => {
         date: moment(month, 'MMM YYYY').toDate(),
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .slice(-12);
+      .slice(-12); // Show last 12 months
   };
 
   const getEvaluationData = () => {
@@ -468,8 +484,13 @@ const Dashboard: React.FC = () => {
     }] : []),
   ];
 
+const totalAdminAndHR = employeeData.filter(e =>
+  e.roleId != null && (e.roleId === ROLES.Admin || e.roleId === ROLES.HR)
+).length;
+
   const renderAdminDashboard = () => (
     <>
+    
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={6}>
           <Card className="dashboard-stat-card">
@@ -477,8 +498,10 @@ const Dashboard: React.FC = () => {
               title="Total Teachers"
               value={totalTeachers}
               prefix={<UserOutlined />}
+              valueStyle={{ color: '#3f8600' }}
             />
           </Card>
+          
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card className="dashboard-stat-card">
@@ -486,6 +509,17 @@ const Dashboard: React.FC = () => {
               title="Non-Teaching Staff"
               value={totalNonTeaching}
               prefix={<TeamOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} >
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Admin & HR Staff"
+              value={totalAdminAndHR}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#cf1322' }}
             />
           </Card>
         </Col>
@@ -495,15 +529,7 @@ const Dashboard: React.FC = () => {
               title="Total Employees"
               value={employeeData.length}
               prefix={<TeamOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-stat-card">
-            <Statistic 
-              title="Regular" 
-              value={contractTypeCounts['Regular']} 
-              prefix={<FileProtectOutlined />} 
+              valueStyle={{ color: '#722ed1' }}
             />
           </Card>
         </Col>
@@ -516,6 +542,37 @@ const Dashboard: React.FC = () => {
               title="Contractual"
               value={contractTypeCounts['Contractual']}
               prefix={<FileTextIconOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+         <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic 
+              title="Regular" 
+              value={contractTypeCounts['Regular']} 
+              prefix={<FileProtectOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Probationary"
+              value={contractTypeCounts['Probationary']}
+              prefix={<FileTextIconOutlined />}
+              valueStyle={{ color: '#eb2f96' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card className="dashboard-stat-card">
+            <Statistic
+              title="Part-Time"
+              value={contractTypeCounts['Part-Time']}
+              prefix={<FileTextIconOutlined />}
+              valueStyle={{ color: '#722ed1' }}
             />
           </Card>
         </Col>
@@ -530,35 +587,17 @@ const Dashboard: React.FC = () => {
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {(chartView === 'hire' || chartView === 'contract') && (
                     <>
-                      <DatePicker 
-                        value={dateRange[0]}
-                        onChange={(date) => setDateRange([date, dateRange[1]])}
+                      <DatePicker.RangePicker
+                        value={dateRange}
+                        onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
                         format="MMM DD, YYYY"
-                        placeholder="Start Date"
                         style={{ 
-                          width: '140px',
+                          width: '280px',
                           borderRadius: '6px',
                           boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                         }}
                         allowClear
                         suffixIcon={<CalendarOutlined style={{ color: '#1890ff' }} />}
-                      />
-                      <DatePicker 
-                        value={dateRange[1]}
-                        onChange={(date) => setDateRange([dateRange[0], date])}
-                        format="MMM DD, YYYY"
-                        placeholder="End Date"
-                        style={{ 
-                          width: '140px',
-                          borderRadius: '6px',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                        }}
-                        allowClear
-                        suffixIcon={<CalendarOutlined style={{ color: '#1890ff' }} />}
-                        disabledDate={(current) => {
-                          if (!dateRange[0]) return false;
-                          return current && current < dateRange[0];
-                        }}
                       />
                     </>
                   )}
@@ -626,14 +665,19 @@ const Dashboard: React.FC = () => {
                             <p style={{ margin: '4px 0 0 0', color: '#1890ff' }}>
                               Employees Hired: {payload[0].value}
                             </p>
-                            {hiringView === 'monthly' && data.employeeNames && (
+                            {data.employeeNames && data.employeeNames.length > 0 && (
                               <div style={{ borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
                                 <p style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '12px' }}>Employees:</p>
-                                {data.employeeNames.map((name: string, idx: number) => (
+                                {data.employeeNames.slice(0, 5).map((name: string, idx: number) => (
                                   <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
                                     • {name}
                                   </p>
                                 ))}
+                                {data.employeeNames.length > 5 && (
+                                  <p style={{ margin: '2px 0', fontSize: '12px', fontStyle: 'italic' }}>
+                                    ... and {data.employeeNames.length - 5} more
+                                  </p>
+                                )}
                               </div>
                             )}
                           </div>
@@ -680,11 +724,16 @@ const Dashboard: React.FC = () => {
                             </p>
                             <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
                               <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                              {data.employees.map((emp: string, idx: number) => (
+                              {data.employees.slice(0, 5).map((emp: string, idx: number) => (
                                 <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
                                   • {emp}
                                 </p>
                               ))}
+                              {data.employees.length > 5 && (
+                                <p style={{ margin: '2px 0', fontSize: '12px', fontStyle: 'italic' }}>
+                                  ... and {data.employees.length - 5} more
+                                </p>
+                              )}
                             </div>
                           </div>
                         );
@@ -759,11 +808,16 @@ const Dashboard: React.FC = () => {
                               </p>
                               <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
                                 <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                                {data.employees.map((emp: string, idx: number) => (
+                                {data.employees.slice(0, 10).map((emp: string, idx: number) => (
                                   <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
                                     • {emp}
                                   </p>
                                 ))}
+                                {data.employees.length > 10 && (
+                                  <p style={{ margin: '2px 0', fontSize: '12px', fontStyle: 'italic' }}>
+                                    ... and {data.employees.length - 10} more
+                                  </p>
+                                )}
                               </div>
                             </div>
                           );
@@ -950,8 +1004,8 @@ const Dashboard: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ textAlign: 'center', padding: '50px', color: '#8c8c8c' }}>
-                No contract data available
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <Text type="secondary">No contract data available</Text>
               </div>
             )}
           </Card>
@@ -967,22 +1021,25 @@ const Dashboard: React.FC = () => {
               renderItem={(item) => (
                 <List.Item className="dashboard-notification-item">
                   <List.Item.Meta
-                    avatar={React.cloneElement(item.icon, { 
-                      style: { 
-                        color: item.type === 'warning' ? '#faad14' : 
-                               item.type === 'error' ? '#ff4d4f' : 
-                               item.type === 'success' ? '#52c41a' : '#1890ff',
-                        fontSize: '16px'
-                      }
-                    })}
+                    avatar={
+                      <Avatar 
+                        icon={item.icon} 
+                        style={{ 
+                          backgroundColor: 
+                            item.type === 'success' ? '#52c41a' :
+                            item.type === 'warning' ? '#faad14' :
+                            item.type === 'error' ? '#ff4d4f' : '#1890ff'
+                        }} 
+                      />
+                    }
                     title={<div className="dashboard-notification-title">{item.title}</div>}
                     description={
-                      <div>
+                      <>
                         <div className="dashboard-notification-description">{item.description}</div>
                         {item.date && (
-                          <div className="dashboard-notification-date">Date: {item.date}</div>
+                          <div className="dashboard-notification-date">{item.date}</div>
                         )}
-                      </div>
+                      </>
                     }
                   />
                 </List.Item>
@@ -992,6 +1049,7 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
+      {/* Evaluation Status Overview for Coordinator */}
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
         <Col span={24}>
           <Card 
@@ -1054,11 +1112,16 @@ const Dashboard: React.FC = () => {
                             </p>
                             <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
                               <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                              {data.employees.map((emp: string, idx: number) => (
+                              {data.employees.slice(0, 10).map((emp: string, idx: number) => (
                                 <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
                                   • {emp}
                                 </p>
                               ))}
+                              {data.employees.length > 10 && (
+                                <p style={{ margin: '2px 0', fontSize: '12px', fontStyle: 'italic' }}>
+                                  ... and {data.employees.length - 10} more
+                                </p>
+                              )}
                             </div>
                           </div>
                         );
@@ -1183,7 +1246,7 @@ const Dashboard: React.FC = () => {
                     type: contract.contractType,
                   }))}
                 >
-                 <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis label={{ value: 'Duration (months)', angle: -90, position: 'insideLeft' }} />
                   <Tooltip 
@@ -1219,8 +1282,8 @@ const Dashboard: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ textAlign: 'center', padding: '50px', color: '#8c8c8c' }}>
-                No contract data available
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <Text type="secondary">No contract data available</Text>
               </div>
             )}
           </Card>
@@ -1236,22 +1299,25 @@ const Dashboard: React.FC = () => {
               renderItem={(item) => (
                 <List.Item className="dashboard-notification-item">
                   <List.Item.Meta
-                    avatar={React.cloneElement(item.icon, { 
-                      style: { 
-                        color: item.type === 'warning' ? '#faad14' : 
-                               item.type === 'error' ? '#ff4d4f' : 
-                               item.type === 'success' ? '#52c41a' : '#1890ff',
-                        fontSize: '16px'
-                      }
-                    })}
+                    avatar={
+                      <Avatar 
+                        icon={item.icon} 
+                        style={{ 
+                          backgroundColor: 
+                            item.type === 'success' ? '#52c41a' :
+                            item.type === 'warning' ? '#faad14' :
+                            item.type === 'error' ? '#ff4d4f' : '#1890ff'
+                        }} 
+                      />
+                    }
                     title={<div className="dashboard-notification-title">{item.title}</div>}
                     description={
-                      <div>
+                      <>
                         <div className="dashboard-notification-description">{item.description}</div>
                         {item.date && (
-                          <div className="dashboard-notification-date">Date: {item.date}</div>
+                          <div className="dashboard-notification-date">{item.date}</div>
                         )}
-                      </div>
+                      </>
                     }
                   />
                 </List.Item>
@@ -1263,13 +1329,18 @@ const Dashboard: React.FC = () => {
     </>
   );
 
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
-      <Spin spinning={loading}>
-        {canViewAdminDashboard ? renderAdminDashboard() : 
-         isCoordinator ? renderCoordinatorDashboard() : 
-         renderEmployeeDashboard()}
-      </Spin>
+      {canViewAdminDashboard ? renderAdminDashboard() : 
+       isCoordinator ? renderCoordinatorDashboard() : renderEmployeeDashboard()}
     </div>
   );
 };

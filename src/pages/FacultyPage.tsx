@@ -46,10 +46,14 @@ import { EmploymentStatusService } from "../api/EmploymentStatusService";
 import { EducationalAttainmentTypes } from "../types/tblEducationalAttainment";
 import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
 import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
+
+dayjs.extend(isBetween);
 
 const { Option } = Select;
 const { useBreakpoint } = Grid;
 const { TabPane } = Tabs;
+const { RangePicker } = DatePicker;
 
 // Excel export utility functions
 const exportToExcel = (data: any[], filename: string, category?: string) => {
@@ -167,6 +171,7 @@ const FacultyPage: React.FC = () => {
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
   const [positionFilter, setPositionFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
 
   // Print and Export modal states
   const [printModalVisible, setPrintModalVisible] = useState(false);
@@ -995,7 +1000,12 @@ const FacultyPage: React.FC = () => {
       statusFilter === "" || 
       employmentStatuses.find((s) => s.employmentStatusID === record.employmentStatus)?.statusName === statusFilter;
 
-    return nameMatch && genderMatch && departmentMatch && positionMatch && statusMatch;
+    // Date range filter
+    const dateMatch = !dateRange || !dateRange[0] || !dateRange[1] || !record.hireDate
+      ? true
+      : dayjs(record.hireDate).isBetween(dateRange[0], dateRange[1], 'day', '[]');
+
+    return nameMatch && genderMatch && departmentMatch && positionMatch && statusMatch && dateMatch;
   });
 
   // Clear all filters
@@ -1005,6 +1015,7 @@ const FacultyPage: React.FC = () => {
     setPositionFilter("");
     setStatusFilter("");
     setSearchText("");
+    setDateRange(null);
   };
 
   const columns: ColumnsType<Employee> = [
@@ -1276,6 +1287,36 @@ const FacultyPage: React.FC = () => {
       responsive: ["md"],
       render: (date) =>
         moment(date).format(screens.md ? "YYYY-MM-DD" : "YY-MM-DD"),
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <RangePicker
+            value={dateRange}
+            onChange={(dates) => setDateRange(dates as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null)}
+            style={{ marginBottom: 8, display: 'block' }}
+            format="YYYY-MM-DD"
+          />
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setDateRange(null);
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
+          </Space>
+        </div>
+      ),
+      filtered: !!dateRange && !!dateRange[0] && !!dateRange[1],
     },
     {
       title: "Actions",
@@ -1352,7 +1393,7 @@ const FacultyPage: React.FC = () => {
       />
       <Space>
         {/* Clear Filters Button */}
-        {(genderFilter || departmentFilter || positionFilter || statusFilter || searchText) && (
+        {(genderFilter || departmentFilter || positionFilter || statusFilter || searchText || dateRange) && (
           <Button
             icon={<FilterOutlined />}
             onClick={clearAllFilters}

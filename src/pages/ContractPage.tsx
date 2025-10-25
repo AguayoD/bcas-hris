@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, JSX } from "react";
 import { 
   EyeOutlined, 
   UploadOutlined,
@@ -199,6 +199,42 @@ const ContractPage: React.FC = () => {
     }
   };
 
+  const getDepartmentName = (departmentId: number | null | undefined): string => {
+    if (departmentId == null) return 'Unknown';
+    const department = departments.find(d => d.departmentID === departmentId);
+    return department ? department.departmentName : String(departmentId);
+  };
+
+  const getAllDepartmentNames = (employee: Employee): string => {
+    const departmentsList: string[] = [];
+    
+    // Primary department
+    if (employee.departmentID) {
+      const primaryDept = getDepartmentName(employee.departmentID);
+      if (primaryDept !== 'Unknown') {
+        departmentsList.push(primaryDept);
+      }
+    }
+    
+    // Second department
+    if (employee.departmentID2) {
+      const secondDept = getDepartmentName(employee.departmentID2);
+      if (secondDept !== 'Unknown') {
+        departmentsList.push(secondDept);
+      }
+    }
+    
+    // Third department
+    if (employee.departmentID3) {
+      const thirdDept = getDepartmentName(employee.departmentID3);
+      if (thirdDept !== 'Unknown') {
+        departmentsList.push(thirdDept);
+      }
+    }
+    
+    return departmentsList.length > 0 ? departmentsList.join(', ') : 'No department assigned';
+  };
+
   const handleSearch = (value: string) => {
     setSearchText(value);
     
@@ -216,11 +252,9 @@ const ContractPage: React.FC = () => {
       // Search by employee name
       const nameMatch = `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchLower);
 
-      // Search by department
-      const deptName = getDepartmentName(emp.departmentID);
-      const deptMatch = typeof deptName === 'string' 
-        ? deptName.toLowerCase().includes(searchLower)
-        : String(deptName).toLowerCase().includes(searchLower);
+      // Search by ALL departments (primary, second, and third)
+      const allDeptNames = getAllDepartmentNames(emp).toLowerCase();
+      const deptMatch = allDeptNames.includes(searchLower);
 
       // Search by contract type
       const typeMatch = latestContract?.contractType?.toLowerCase().includes(searchLower);
@@ -498,12 +532,6 @@ const ContractPage: React.FC = () => {
     }
   };
 
-  const getDepartmentName = (departmentId: number | null | undefined): string => {
-    if (departmentId == null) return 'Unknown';
-    const department = departments.find(d => d.departmentID === departmentId);
-    return department ? department.departmentName : String(departmentId);
-  };
-
   const beforeUpload: UploadProps['beforeUpload'] = (file) => {
     // Check file type - only allow PDF and images
     const isPdf = file.type === 'application/pdf';
@@ -641,11 +669,47 @@ const ContractPage: React.FC = () => {
       ),
     },
     {
-      title: 'Department',
+      title: 'Department(s)',
       key: 'department',
-      render: (record: Employee) => (
-        <Text>{getDepartmentName(record.departmentID)}</Text>
-      ),
+      render: (record: Employee) => {
+        const departmentsList: JSX.Element[] = [];
+        
+        // Primary department
+        if (record.departmentID) {
+          const primaryDept = getDepartmentName(record.departmentID);
+          if (primaryDept !== 'Unknown') {
+            departmentsList.push(
+              <Tag key="primary" color="blue">{primaryDept}</Tag>
+            );
+          }
+        }
+        
+        // Second department
+        if (record.departmentID2) {
+          const secondDept = getDepartmentName(record.departmentID2);
+          if (secondDept !== 'Unknown') {
+            departmentsList.push(
+              <Tag key="secondary" color="green">{secondDept}</Tag>
+            );
+          }
+        }
+        
+        // Third department
+        if (record.departmentID3) {
+          const thirdDept = getDepartmentName(record.departmentID3);
+          if (thirdDept !== 'Unknown') {
+            departmentsList.push(
+              <Tag key="tertiary" color="orange">{thirdDept}</Tag>
+            );
+          }
+        }
+        
+        return (
+          <Space wrap>
+            {departmentsList.length > 0 ? departmentsList : <Text type="secondary">No department</Text>}
+          </Space>
+        );
+      },
     },
     {
       title: 'Contract Type',
@@ -1110,11 +1174,8 @@ const ContractPage: React.FC = () => {
                 <Col span={8}>
                   <Text strong>Employee ID:</Text> {viewingContractHistory.employeeID}
                 </Col>
-                <Col span={8}>
-                  <Text strong>Department:</Text> {getDepartmentName(viewingContractHistory.departmentID)}
-                </Col>
-                <Col span={8}>
-                  <Text strong>Total Contracts:</Text> {viewingContractHistory.contracts.length}
+                <Col span={16}>
+                  <Text strong>Department(s):</Text> {getAllDepartmentNames(viewingContractHistory)}
                 </Col>
               </Row>
             </Card>
