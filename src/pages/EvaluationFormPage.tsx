@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "../api/_axiosInstance";
 import DepartmentService from "../api/DepartmentService";
 import { Spin, Input, Button, message } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import './EvaluationPage.css';
 import { ROLES } from "../types/auth";
 import { useAuth } from "../types/useAuth";
@@ -20,6 +20,8 @@ type Item = {
   subGroupID: number | null;
   groupID: number | null;
   description: string;
+  itemTypeID?: number | null;
+  itemType?: string | null;
   isEditing?: boolean;
   tempDescription?: string;
 };
@@ -38,6 +40,8 @@ type Group = {
   description: string;
   weight: number;
   subGroups: SubGroup[];
+  isEditing?: boolean;
+  tempDescription?: string;
 };
 
 type SubGroupScore = {
@@ -56,14 +60,12 @@ type Evaluation = {
   evaluatorPosition?: number;
 };
 
-// Department type
 type Department = {
   departmentID: number;
   departmentName: string;
   description?: string;
 };
 
-// Employee type with department info
 type Employee = {
   employeeID: number;
   firstName: string;
@@ -74,7 +76,6 @@ type Employee = {
   departmentName?: string;
 };
 
-// Static score choices
 const scoreChoices: ScoreChoice[] = [
   { value: 1, label: "Poor" },
   { value: 2, label: "Fair" },
@@ -82,6 +83,9 @@ const scoreChoices: ScoreChoice[] = [
   { value: 4, label: "Very Satisfactory" },
   { value: 5, label: "Excellent" },
 ];
+
+// Special ID for the virtual Non-teachers department
+const NON_TEACHING_DEPARTMENT_ID = -1;
 
 const EvaluationFormPage = () => {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -94,110 +98,141 @@ const EvaluationFormPage = () => {
   const [scores, setScores] = useState<SubGroupScore[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [userData, setUserData] = useState<any>(null);
   const [userDepartment, setUserDepartment] = useState<Department | null>(null);
   const [editing, setEditing] = useState<boolean>(false);
+  
+  // Use useAuth hook properly
   const { user } = useAuth();
+  
   const isAdmin = user?.roleId === ROLES.Admin;
   const isHR = user?.roleId === ROLES.HR;
   const isCoordinator = user?.roleId === ROLES.Coordinator;
 
-  // A map from subGroupID → list of items
   const [itemsBySubGroup, setItemsBySubGroup] = useState<Record<number, Item[]>>({});
-
-  // Employee roles mapping (employeeID -> roleId)
   const [employeeRoles, setEmployeeRoles] = useState<Record<number, number>>({});
 
-  // Function to check if current user has already evaluated a specific employee
   const hasUserEvaluatedEmployee = (employeeID: number) => {
     return evaluations.some(evalItem => 
-      evalItem.employeeID === employeeID && evalItem.evaluatorID === userData?.employeeId
+      evalItem.employeeID === employeeID && evalItem.evaluatorID === user?.employeeId
     );
   };
 
-  // Get user's department from employees list
   const getUserDepartment = () => {
-    if (!userData?.employeeId || employees.length === 0) return null;
+    if (!user?.employeeId || employees.length === 0) return null;
     
-    const userEmployee = employees.find(emp => emp.employeeID === userData.employeeId);
+    const userEmployee = employees.find(emp => emp.employeeID === user.employeeId);
     if (!userEmployee) return null;
     
     return departments.find(dept => dept.departmentID === userEmployee.departmentID) || null;
   };
 
-  // Get available departments based on user role
   const getAvailableDepartments = () => {
+    const baseDepartments = isAdmin || isHR ? departments : (userDepartment ? [userDepartment] : []);
+    
+    // Add Non-teachers as a virtual department option for Admin/HR
     if (isAdmin || isHR) {
-      return departments;
+      return [
+        ...baseDepartments,
+        {
+          departmentID: NON_TEACHING_DEPARTMENT_ID,
+          departmentName: "Non-teachers",
+          description: "Non-teaching staff from all departments"
+        }
+      ];
     }
-    // Regular users can only see their own department
-    return userDepartment ? [userDepartment] : [];
+    
+    return baseDepartments;
   };
 
-  // Filtered employees based on selected department AND prevent self-evaluation AND prevent duplicate evaluation by same user AND prevent coordinators from evaluating other coordinators
+  // Helper functions to determine which items to show based on employee role
+  const shouldShowTeachingItems = (employeeID: number) => {
+    if (!employeeID) return true;
+    const role = employeeRoles[employeeID];
+    // Non-teaching employees should never show teaching items
+    return role !== ROLES.NonTeaching && 
+           (role === ROLES.Teaching || role === ROLES.Coordinator || role === ROLES.Admin || role === ROLES.HR);
+  };
+
+  const shouldShowNonTeachingItems = (employeeID: number) => {
+    if (!employeeID) return true;
+    const role = employeeRoles[employeeID];
+    // Only non-teaching employees should show non-teaching items
+    return role === ROLES.NonTeaching || role === ROLES.Admin || role === ROLES.HR;
+  };
+
+  // Helper to filter items by type using actual database fields - FIXED LOGIC
+  const getItemsByType = (items: Item[], type: 'teaching' | 'non-teaching') => {
+    if (!items) return [];
+    
+    return items.filter(item => {
+      if (type === 'teaching') {
+        // Show items that are explicitly teaching OR have no type specified (default to teaching)
+        return item.itemType === 'teaching' || item.itemTypeID === 1 || !item.itemType || item.itemTypeID === null;
+      } else {
+        // Show only items that are explicitly non-teaching
+        return item.itemType === 'non-teaching' || item.itemTypeID === 2;
+      }
+    });
+  };
+
   const filteredEmployees = selectedDepartmentID
     ? employees.filter(emp => {
-        // Prevent evaluators from evaluating themselves
-        if (emp.employeeID === userData?.employeeId) {
+        if (emp.employeeID === user?.employeeId) {
           return false;
         }
         
-        // Prevent coordinators from evaluating other coordinators
-        if (isCoordinator) {
+        // Check if this is the "Non-teachers" department
+        const isNonTeachingDepartment = selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID;
+        
+        if (isNonTeachingDepartment) {
+          // Only show non-teaching employees in the Non-teachers department
           const targetEmployeeRole = employeeRoles[emp.employeeID];
-          if (targetEmployeeRole === ROLES.Coordinator) {
-            return false;
-          }
-        }
-        
-        // Check if employee belongs to selected department (primary, secondary, or tertiary)
-        const belongsToDepartment = 
-          emp.departmentID === selectedDepartmentID ||
-          emp.departmentID2 === selectedDepartmentID || 
-          emp.departmentID3 === selectedDepartmentID;
-        
-        if (belongsToDepartment) {
-          // Check if current user has already evaluated this employee
-          const userHasEvaluated = hasUserEvaluatedEmployee(emp.employeeID);
-          
-          // If user has already evaluated this employee, don't show them
-          if (userHasEvaluated) {
+          return targetEmployeeRole === ROLES.NonTeaching;
+        } else {
+          // For regular departments, exclude non-teaching employees
+          const targetEmployeeRole = employeeRoles[emp.employeeID];
+          if (targetEmployeeRole === ROLES.NonTeaching) {
             return false;
           }
           
-          return true;
+          if (isCoordinator) {
+            if (targetEmployeeRole === ROLES.Coordinator || targetEmployeeRole === ROLES.NonTeaching) {
+              return false;
+            }
+          }
+          
+          const belongsToDepartment = 
+            emp.departmentID === selectedDepartmentID ||
+            emp.departmentID2 === selectedDepartmentID || 
+            emp.departmentID3 === selectedDepartmentID;
+          
+          if (belongsToDepartment) {
+            const userHasEvaluated = hasUserEvaluatedEmployee(emp.employeeID);
+            if (userHasEvaluated) {
+              return false;
+            }
+            
+            return true;
+          }
+          return false;
         }
-        return false;
       })
     : [];
 
   useEffect(() => {
-    const userDataStr = localStorage.getItem("userData");
-    
-    if (userDataStr) {
-      try {
-        const user = JSON.parse(userDataStr);
-        setUserData(user);
-      } catch (e) {
-        console.error("Invalid userData in localStorage");
-      }
-    }
-
     loadData();
   }, []);
 
-  // Update user department when employees and departments are loaded
   useEffect(() => {
-    if (employees.length > 0 && departments.length > 0 && userData?.employeeId) {
+    if (employees.length > 0 && departments.length > 0 && user?.employeeId) {
       const department = getUserDepartment();
       setUserDepartment(department);
       
-      // Auto-select department for non-admin/HR users
       if (department && !isAdmin && !isHR) {
         setSelectedDepartmentID(department.departmentID);
       }
     }
-  }, [employees, departments, userData]);
+  }, [employees, departments, user, isAdmin, isHR]);
 
   const loadData = async () => {
     setLoading(true);
@@ -235,16 +270,20 @@ const EvaluationFormPage = () => {
       const employeesData = Array.isArray(employeesRes.data) ? employeesRes.data : employeesRes.data.result || [];
       setEmployees(employeesData);
 
-      // Store full evaluations instead of just IDs
       setEvaluations(evaluationsRes.data);
 
-      // Fetch items for all subgroups
       const allSubgroups = groupsData.flatMap((g) => g.subGroups);
       const subItemsList = await Promise.all(
         allSubgroups.map(async (sub) => {
           try {
             const respItems = await axios.get(`/EvaluationStructure/items/by-subgroup/${sub.subGroupID}`);
-            return { subGroupID: sub.subGroupID, items: respItems.data || [] };
+            
+            // Use actual database fields
+            const items = (respItems.data || []).map((dbItem: any) => ({
+              ...dbItem,
+            }));
+            
+            return { subGroupID: sub.subGroupID, items };
           } catch (error) {
             console.error(`Error loading items for subgroup ${sub.subGroupID}:`, error);
             return { subGroupID: sub.subGroupID, items: [] };
@@ -258,7 +297,6 @@ const EvaluationFormPage = () => {
       });
       setItemsBySubGroup(map);
 
-      // Fetch user data to get roles for all employees
       try {
         const usersResponse = await axios.get("/Users");
         const users = usersResponse.data;
@@ -286,6 +324,7 @@ const EvaluationFormPage = () => {
   const handleDepartmentChange = (departmentID: number) => {
     setSelectedDepartmentID(departmentID);
     setSelectedEmployeeID(null);
+    setScores([]); // Reset scores when department changes
   };
 
   const handleScoreChange = (subGroupID: number, value: number) => {
@@ -306,32 +345,34 @@ const EvaluationFormPage = () => {
       return;
     }
 
-    // Additional check to prevent self-evaluation
-    if (selectedEmployeeID === userData?.employeeId) {
+    if (selectedEmployeeID === user?.employeeId) {
       message.error("You cannot evaluate yourself.");
       return;
     }
 
-    // Additional check to prevent coordinators from evaluating other coordinators
     if (isCoordinator) {
       const targetEmployeeRole = employeeRoles[selectedEmployeeID];
       if (targetEmployeeRole === ROLES.Coordinator) {
         message.error("Coordinators cannot evaluate other coordinators.");
         return;
       }
+      if (targetEmployeeRole === ROLES.NonTeaching) {
+        message.error("Coordinators cannot evaluate non-teaching staff.");
+        return;
+      }
     }
 
-    // Additional check to prevent duplicate evaluation
     if (hasUserEvaluatedEmployee(selectedEmployeeID)) {
       message.error("You have already evaluated this employee.");
       return;
     }
 
-    if (!userData?.employeeId) {
+    if (!user?.employeeId) {
       message.error("Evaluator information missing. Please log in again.");
       return;
     }
 
+    // SIMPLIFIED VALIDATION - Just check if at least one score is provided
     if (scores.length === 0) {
       message.error("Please provide ratings for at least one subgroup.");
       return;
@@ -339,11 +380,20 @@ const EvaluationFormPage = () => {
 
     const evaluation: Evaluation = {
       employeeID: selectedEmployeeID,
-      evaluatorID: userData.employeeId,
+      evaluatorID: user.employeeId,
       evaluationDate: new Date().toISOString(),
       comments: comments,
       scores: scores,
     };
+
+    // Debug log
+    console.log('Submitting evaluation:', {
+      employeeID: evaluation.employeeID,
+      evaluatorID: evaluation.evaluatorID,
+      scoresCount: evaluation.scores.length,
+      scores: evaluation.scores,
+      comments: evaluation.comments
+    });
 
     setSubmitting(true);
 
@@ -352,10 +402,8 @@ const EvaluationFormPage = () => {
       .then((response) => {
         message.success("Evaluation submitted successfully.");
         
-        // Add the new evaluation to evaluations state
         setEvaluations(prev => [...prev, response.data]);
         
-        // Reset form
         if (isAdmin || isHR) {
           setSelectedDepartmentID(null);
         } else {
@@ -367,11 +415,65 @@ const EvaluationFormPage = () => {
       })
       .catch((err: any) => {
         console.error("Error submitting evaluation:", err);
-        message.error("Error submitting evaluation.");
+        console.error("Error response:", err.response?.data);
+        message.error(`Error submitting evaluation: ${err.response?.data?.message || err.response?.data || err.message}`);
       })
       .finally(() => {
         setSubmitting(false);
       });
+  };
+
+  // Group editing functions
+  const startEditingGroup = (groupID: number) => {
+    setGroups(prev => prev.map(group => {
+      if (group.groupID === groupID) {
+        return { ...group, isEditing: true, tempDescription: group.description };
+      }
+      return group;
+    }));
+  };
+
+  const cancelEditingGroup = (groupID: number) => {
+    setGroups(prev => prev.map(group => {
+      if (group.groupID === groupID) {
+        return { ...group, isEditing: false, tempDescription: undefined };
+      }
+      return group;
+    }));
+  };
+
+  const saveGroupDescription = async (groupID: number, newDescription: string) => {
+    if (!newDescription.trim()) {
+      message.error("Group description cannot be empty");
+      return;
+    }
+
+    try {
+      await axios.put(`/EvaluationStructure/groups/${groupID}`, {
+        description: newDescription
+      });
+
+      setGroups(prev => prev.map(group => {
+        if (group.groupID === groupID) {
+          return { ...group, description: newDescription, isEditing: false, tempDescription: undefined };
+        }
+        return group;
+      }));
+      
+      message.success("Group description updated successfully");
+    } catch (error: any) {
+      console.error("Error updating group:", error);
+      message.error(`Failed to update group description: ${error.response?.data || error.message}`);
+    }
+  };
+
+  const handleGroupDescriptionChange = (groupID: number, value: string) => {
+    setGroups(prev => prev.map(group => {
+      if (group.groupID === groupID) {
+        return { ...group, tempDescription: value };
+      }
+      return group;
+    }));
   };
 
   // SubGroup editing functions
@@ -460,7 +562,7 @@ const EvaluationFormPage = () => {
     }));
   };
 
-  // Item editing functions
+  // Item editing functions - FIXED: Now includes itemType and itemTypeID
   const startEditingItem = (subGroupID: number, itemID: number) => {
     setItemsBySubGroup(prev => {
       const updated = { ...prev };
@@ -498,9 +600,13 @@ const EvaluationFormPage = () => {
     }
 
     try {
+      // Get the current item to preserve itemType and itemTypeID
+      const currentItem = itemsBySubGroup[subGroupID]?.find(item => item.itemID === itemID);
+      
       await axios.put(`/EvaluationStructure/items/${itemID}`, {
-        subGroupID: subGroupID,
-        description: newDescription
+        description: newDescription,
+        itemType: currentItem?.itemType,
+        itemTypeID: currentItem?.itemTypeID
       });
 
       setItemsBySubGroup(prev => {
@@ -508,7 +614,12 @@ const EvaluationFormPage = () => {
         if (updated[subGroupID]) {
           updated[subGroupID] = updated[subGroupID].map(item => {
             if (item.itemID === itemID) {
-              return { ...item, description: newDescription, isEditing: false, tempDescription: undefined };
+              return { 
+                ...item, 
+                description: newDescription, 
+                isEditing: false, 
+                tempDescription: undefined 
+              };
             }
             return item;
           });
@@ -519,7 +630,7 @@ const EvaluationFormPage = () => {
       message.success("Item description updated successfully");
     } catch (error: any) {
       console.error("Error updating item:", error);
-      message.error(`Failed to update item description: ${error.response?.data || error.message}`);
+      message.error(`Failed to update item description: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -558,7 +669,6 @@ const EvaluationFormPage = () => {
         return group;
       }));
       
-      // Initialize empty items array for this new subgroup
       setItemsBySubGroup(prev => ({
         ...prev,
         [newSubGroup.subGroupID]: []
@@ -571,12 +681,14 @@ const EvaluationFormPage = () => {
     }
   };
 
-  // Add new item
-  const addNewItem = async (subGroupID: number) => {
+  // Add new item - using actual database fields
+  const addNewItem = async (subGroupID: number, itemType: 'teaching' | 'non-teaching' = 'teaching') => {
     try {
       const response = await axios.post("/EvaluationStructure/items", {
         subGroupID: subGroupID,
-        description: "New Item Description"
+        description: itemType === 'non-teaching' ? "New Non-Teaching Item" : "New Teaching Item",
+        itemType: itemType,
+        itemTypeID: itemType === 'non-teaching' ? 2 : 1
       });
       
       const newItem = response.data;
@@ -589,15 +701,63 @@ const EvaluationFormPage = () => {
         updated[subGroupID] = [...updated[subGroupID], { 
           ...newItem, 
           isEditing: true, 
-          tempDescription: "New Item Description" 
+          tempDescription: itemType === 'non-teaching' ? "New Non-Teaching Item" : "New Teaching Item"
         }];
         return updated;
       });
       
-      message.success("New item added successfully");
+      message.success(`New ${itemType} item added successfully`);
     } catch (error: any) {
       console.error("Error adding item:", error);
-      message.error(`Failed to add new item: ${error.response?.data || error.message}`);
+      message.error(`Failed to add new item: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  // Delete subgroup
+  const deleteSubGroup = async (groupID: number, subGroupID: number) => {
+    try {
+      await axios.delete(`/EvaluationStructure/subgroups/${subGroupID}`);
+      
+      setGroups(prev => prev.map(group => {
+        if (group.groupID === groupID) {
+          return {
+            ...group,
+            subGroups: group.subGroups.filter(sub => sub.subGroupID !== subGroupID)
+          };
+        }
+        return group;
+      }));
+      
+      setItemsBySubGroup(prev => {
+        const updated = { ...prev };
+        delete updated[subGroupID];
+        return updated;
+      });
+      
+      message.success("SubGroup deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting subgroup:", error);
+      message.error(`Failed to delete subgroup: ${error.response?.data || error.message}`);
+    }
+  };
+
+  // Delete item
+  const deleteItem = async (subGroupID: number, itemID: number) => {
+    try {
+      await axios.delete(`/EvaluationStructure/items/${itemID}`);
+      
+      setItemsBySubGroup(prev => {
+        const updated = { ...prev };
+        if (updated[subGroupID]) {
+          updated[subGroupID] = updated[subGroupID].filter(item => item.itemID !== itemID);
+        }
+        return updated;
+      });
+      
+      message.success("Item deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting item:", error);
+      message.error(`Failed to delete item: ${error.response?.data || error.message}`);
     }
   };
 
@@ -612,7 +772,7 @@ const EvaluationFormPage = () => {
           <h1>Employee Evaluation Form</h1>
           <p>Employee Performance Assessment</p>
           <p className="evaluator-info">
-            Evaluator: <span>{userData?.username}</span>
+            Evaluator: <span>{user?.username}</span>
             {userDepartment && ` (${userDepartment.departmentName})`}
             {(isAdmin || isHR) && (
               <>
@@ -653,6 +813,7 @@ const EvaluationFormPage = () => {
                   {availableDepartments.map((dept) => (
                     <option key={dept.departmentID} value={dept.departmentID}>
                       {dept.departmentName}
+                      {dept.departmentID === NON_TEACHING_DEPARTMENT_ID && " (All Non-teaching Staff)"}
                     </option>
                   ))}
                 </select>
@@ -675,7 +836,10 @@ const EvaluationFormPage = () => {
               <label>Select Employee: </label>
               <select
                 value={selectedEmployeeID ?? ""}
-                onChange={(e) => setSelectedEmployeeID(Number(e.target.value))}
+                onChange={(e) => {
+                  setSelectedEmployeeID(Number(e.target.value));
+                  setScores([]); // Reset scores when employee changes
+                }}
                 className="form-control"
                 disabled={!selectedDepartmentID}
               >
@@ -684,19 +848,30 @@ const EvaluationFormPage = () => {
                 </option>
                 {filteredEmployees.length > 0 ? (
                   filteredEmployees.map((emp) => {
-                    // Get all department names
+                    // For Non-teachers department, show which department they actually belong to
                     const primaryDept = departments.find(d => d.departmentID === emp.departmentID)?.departmentName;
                     const secondaryDept = emp.departmentID2 ? departments.find(d => d.departmentID === emp.departmentID2)?.departmentName : null;
                     const tertiaryDept = emp.departmentID3 ? departments.find(d => d.departmentID === emp.departmentID3)?.departmentName : null;
                     
-                    // Create departments string
-                    const departmentsString = [primaryDept, secondaryDept, tertiaryDept]
+                    let departmentsString = [primaryDept, secondaryDept, tertiaryDept]
                       .filter(Boolean)
                       .join(' / ');
                     
+                    // If viewing Non-teachers department, show their actual department affiliation
+                    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
+                      departmentsString = departmentsString || 'No department assigned';
+                    }
+                    
+                    const role = employeeRoles[emp.employeeID];
+                    const roleName = role === ROLES.Teaching ? 'Teaching' : 
+                                   role === ROLES.NonTeaching ? 'Non-Teaching' : 
+                                   role === ROLES.Coordinator ? 'Coordinator' : 
+                                   role === ROLES.Admin ? 'Admin' : 
+                                   role === ROLES.HR ? 'HR' : 'Unknown';
+                    
                     return (
                       <option key={emp.employeeID} value={emp.employeeID}>
-                        {emp.firstName} {emp.lastName} ({departmentsString})
+                        {emp.firstName} {emp.lastName} ({roleName}) - {departmentsString}
                       </option>
                     );
                   })
@@ -709,7 +884,9 @@ const EvaluationFormPage = () => {
               {selectedDepartmentID && filteredEmployees.length === 0 && (
                 <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
                   {isCoordinator 
-                    ? "No employees available for evaluation in this department, or you have already evaluated all available employees. Note: Coordinators cannot evaluate other coordinators."
+                    ? "No employees available for evaluation in this department, or you have already evaluated all available employees. Note: Coordinators cannot evaluate other coordinators or non-teaching staff."
+                    : selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID
+                    ? "No non-teaching employees available for evaluation, or you have already evaluated all non-teaching staff."
                     : "No employees available for evaluation in this department, or you have already evaluated all employees."
                   }
                 </div>
@@ -721,14 +898,53 @@ const EvaluationFormPage = () => {
         {groups.map((group) => (
           <div key={group.groupID} style={{ marginBottom: 30 }} className="form-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ margin: 0 }}>{group.description}</h2>
-              {editing && (
-                <Button 
-                  type="dashed" 
-                  onClick={() => addNewSubGroup(group.groupID)}
-                >
-                  + Add SubGroup
-                </Button>
+              {group.isEditing ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Input
+                    value={group.tempDescription || group.description}
+                    onChange={(e) => handleGroupDescriptionChange(group.groupID, e.target.value)}
+                    style={{ width: 400 }}
+                    placeholder="Enter group description"
+                  />
+                  <Button 
+                    size="small" 
+                    type="primary"
+                    onClick={() => saveGroupDescription(group.groupID, group.tempDescription || group.description)}
+                  >
+                    Save
+                  </Button>
+                  <Button 
+                    size="small" 
+                    onClick={() => cancelEditingGroup(group.groupID)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <h2 style={{ margin: 0 }}>
+                    {group.description}
+                    {editing && (
+                      <Button 
+                        type="link" 
+                        size="small" 
+                        icon={<EditOutlined />}
+                        onClick={() => startEditingGroup(group.groupID)}
+                        style={{ marginLeft: 8 }}
+                      >
+                        Edit Name
+                      </Button>
+                    )}
+                  </h2>
+                  {editing && (
+                    <Button 
+                      type="dashed" 
+                      onClick={() => addNewSubGroup(group.groupID)}
+                    >
+                      + Add SubGroup
+                    </Button>
+                  )}
+                </>
               )}
             </div>
 
@@ -768,83 +984,193 @@ const EvaluationFormPage = () => {
                         <span style={{ marginLeft: 8 }}>
                           {sub.name}
                           {editing && (
-                            <Button 
-                              type="link" 
-                              size="small" 
-                              icon={<EditOutlined />}
-                              onClick={() => startEditingSubGroup(group.groupID, sub.subGroupID)}
-                              style={{ marginLeft: 8 }}
-                            >
-                              Edit Name
-                            </Button>
+                            <div style={{ display: 'inline-flex', gap: 4, marginLeft: 8 }}>
+                              <Button 
+                                type="link" 
+                                size="small" 
+                                icon={<EditOutlined />}
+                                onClick={() => startEditingSubGroup(group.groupID, sub.subGroupID)}
+                              >
+                                Edit Name
+                              </Button>
+                              <Button 
+                                type="link" 
+                                size="small" 
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => deleteSubGroup(group.groupID, sub.subGroupID)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
                           )}
                         </span>
                       )}
                     </p>
                   </div>
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <strong>Evaluation Items:</strong>
-                    {editing && (
-                      <Button 
-                        type="dashed" 
-                        size="small"
-                        onClick={() => addNewItem(sub.subGroupID)}
-                      >
-                        + Add Item
-                      </Button>
-                    )}
-                  </div>
-                  
-                  {itemsBySubGroup[sub.subGroupID] && itemsBySubGroup[sub.subGroupID].length > 0 ? (
-                    <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                      {itemsBySubGroup[sub.subGroupID].map((item) => (
-                        <li key={item.itemID} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                          {item.isEditing ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <Input
-                                value={item.tempDescription || item.description}
-                                onChange={(e) => handleItemDescriptionChange(sub.subGroupID, item.itemID, e.target.value)}
-                                style={{ flex: 1 }}
-                                placeholder="Enter item description"
-                              />
-                              <Button 
-                                size="small" 
-                                type="primary"
-                                onClick={() => saveItemDescription(sub.subGroupID, item.itemID, item.tempDescription || item.description)}
-                              >
-                                Save
-                              </Button>
-                              <Button 
-                                size="small" 
-                                onClick={() => cancelEditingItem(sub.subGroupID, item.itemID)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ flex: 1 }}>{item.description}</span>
-                              {editing && (
+                  {/* Teaching Items Section */}
+                  {(!selectedEmployeeID || shouldShowTeachingItems(selectedEmployeeID)) && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <strong>Teaching Evaluation Items:</strong>
+                        {editing && (
+                          <Button 
+                            type="dashed" 
+                            size="small"
+                            onClick={() => addNewItem(sub.subGroupID, 'teaching')}
+                          >
+                            + Add Teaching Item
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {getItemsByType(itemsBySubGroup[sub.subGroupID] || [], 'teaching').length > 0 && (
+                        <div style={{ padding: '8px 0', borderBottom: '1px solid #e8e8e8' }}>
+                          <strong style={{ color: '#1890ff' }}>Teaching Items:</strong>
+                        </div>
+                      )}
+                      <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                        {getItemsByType(itemsBySubGroup[sub.subGroupID] || [], 'teaching').map((item) => (
+                          <li key={item.itemID} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                            {item.isEditing ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Input
+                                  value={item.tempDescription || item.description}
+                                  onChange={(e) => handleItemDescriptionChange(sub.subGroupID, item.itemID, e.target.value)}
+                                  style={{ flex: 1 }}
+                                  placeholder="Enter item description"
+                                />
                                 <Button 
-                                  type="link" 
                                   size="small" 
-                                  icon={<EditOutlined />}
-                                  onClick={() => startEditingItem(sub.subGroupID, item.itemID)}
+                                  type="primary"
+                                  onClick={() => saveItemDescription(sub.subGroupID, item.itemID, item.tempDescription || item.description)}
                                 >
-                                  Edit
+                                  Save
                                 </Button>
-                              )}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
+                                <Button 
+                                  size="small" 
+                                  onClick={() => cancelEditingItem(sub.subGroupID, item.itemID)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ flex: 1 }}>{item.description}</span>
+                                {editing && (
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    <Button 
+                                      type="link" 
+                                      size="small" 
+                                      icon={<EditOutlined />}
+                                      onClick={() => startEditingItem(sub.subGroupID, item.itemID)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      type="link" 
+                                      size="small" 
+                                      danger
+                                      icon={<DeleteOutlined />}
+                                      onClick={() => deleteItem(sub.subGroupID, item.itemID)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Non-Teaching Items Section */}
+                  {(!selectedEmployeeID || shouldShowNonTeachingItems(selectedEmployeeID)) && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <strong>Non-Teaching Evaluation Items:</strong>
+                        {editing && (
+                          <Button 
+                            type="dashed" 
+                            size="small"
+                            onClick={() => addNewItem(sub.subGroupID, 'non-teaching')}
+                          >
+                            + Add Non-Teaching Item
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {getItemsByType(itemsBySubGroup[sub.subGroupID] || [], 'non-teaching').length > 0 && (
+                        <div style={{ padding: '8px 0', borderBottom: '1px solid #e8e8e8' }}>
+                          <strong style={{ color: '#52c41a' }}>Non-Teaching Items:</strong>
+                        </div>
+                      )}
+                      <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                        {getItemsByType(itemsBySubGroup[sub.subGroupID] || [], 'non-teaching').map((item) => (
+                          <li key={item.itemID} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                            {item.isEditing ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Input
+                                  value={item.tempDescription || item.description}
+                                  onChange={(e) => handleItemDescriptionChange(sub.subGroupID, item.itemID, e.target.value)}
+                                  style={{ flex: 1 }}
+                                  placeholder="Enter item description"
+                                />
+                                <Button 
+                                  size="small" 
+                                  type="primary"
+                                  onClick={() => saveItemDescription(sub.subGroupID, item.itemID, item.tempDescription || item.description)}
+                                >
+                                  Save
+                                </Button>
+                                <Button 
+                                  size="small" 
+                                  onClick={() => cancelEditingItem(sub.subGroupID, item.itemID)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ flex: 1 }}>{item.description}</span>
+                                {editing && (
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    <Button 
+                                      type="link" 
+                                      size="small" 
+                                      icon={<EditOutlined />}
+                                      onClick={() => startEditingItem(sub.subGroupID, item.itemID)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      type="link" 
+                                      size="small" 
+                                      danger
+                                      icon={<DeleteOutlined />}
+                                      onClick={() => deleteItem(sub.subGroupID, item.itemID)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* No Items Message */}
+                  {(!itemsBySubGroup[sub.subGroupID] || itemsBySubGroup[sub.subGroupID].length === 0) && (
                     <div style={{ padding: '16px 0', textAlign: 'center' }}>
                       <p style={{ color: '#999', fontStyle: 'italic', margin: 0 }}>
                         No items available for this subgroup.
-                        {editing && ' Click "Add Item" to create one.'}
+                        {editing && ' Click "Add Teaching Item" or "Add Non-Teaching Item" to create one.'}
                       </p>
                     </div>
                   )}
@@ -921,7 +1247,6 @@ const EvaluationFormPage = () => {
       </div>
     </Spin>
   );
-  
 };
 
 export default EvaluationFormPage;
