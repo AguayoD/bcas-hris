@@ -56,12 +56,14 @@ interface ContractFormData {
   contractStartDate: Dayjs;
   contractEndDate: Dayjs;
   contractType: string;
+  contractCategory: string;
 }
 
 interface ContractUpdateFormData {
   contractStartDate?: Dayjs;
   contractEndDate?: Dayjs;
   contractType?: string;
+  contractCategory?: string;
 }
 
 const getFileIcon = (fileType?: string, fileName?: string) => {
@@ -259,6 +261,9 @@ const ContractPage: React.FC = () => {
       // Search by contract type
       const typeMatch = latestContract?.contractType?.toLowerCase().includes(searchLower);
 
+      // Search by contract category
+      const categoryMatch = latestContract?.contractCategory?.toLowerCase().includes(searchLower);
+
       // Search by end date (format: MMM DD, YYYY or just year)
       const endDateMatch = latestContract?.contractEndDate 
         ? dayjs(latestContract.contractEndDate).format('MMM DD, YYYY').toLowerCase().includes(searchLower) ||
@@ -291,7 +296,7 @@ const ContractPage: React.FC = () => {
         }
       }
 
-      return nameMatch || deptMatch || typeMatch || endDateMatch || renewalMatch;
+      return nameMatch || deptMatch || typeMatch || categoryMatch || endDateMatch || renewalMatch;
     });
 
     setFilteredEmployees(filtered);
@@ -421,6 +426,7 @@ const ContractPage: React.FC = () => {
         // Create the contract data with consistent structure
         const contractData: any = {
           contractType: values.contractType,
+          contractCategory: values.contractCategory,
           contractStartDate: values.contractStartDate.format('YYYY-MM-DD'),
           lastUpdatedBy: user?.employeeId || 0
         };
@@ -475,6 +481,9 @@ const ContractPage: React.FC = () => {
 
         if (values.contractType) {
           updateData.contractType = values.contractType;
+        }
+        if (values.contractCategory) {
+          updateData.contractCategory = values.contractCategory;
         }
         if (values.contractStartDate) {
           updateData.contractStartDate = values.contractStartDate.format('YYYY-MM-DD');
@@ -753,28 +762,6 @@ const ContractPage: React.FC = () => {
       },
     },
     {
-      title: 'Days Remaining',
-      key: 'daysRemaining',
-      render: (record: EmployeeWithContracts) => {
-        const latestContract = record.contracts.length > 0 
-          ? record.contracts[record.contracts.length - 1] 
-          : null;
-        
-        if (!latestContract?.contractEndDate || latestContract?.contractType === 'Regular') {
-          return <Text type="secondary">N/A</Text>;
-        }
-        
-        const daysLeft = dayjs(latestContract.contractEndDate).diff(dayjs(), 'days');
-        const color = daysLeft < 30 ? 'red' : daysLeft < 90 ? 'orange' : 'green';
-        
-        return (
-          <Text type={color === 'red' ? 'danger' : color === 'orange' ? 'warning' : 'success'}>
-            {daysLeft > 0 ? `${daysLeft} days` : 'Expired'}
-          </Text>
-        );
-      },
-    },
-    {
       title: 'Contract Documents',
       key: 'contractDocuments',
       render: (record: EmployeeWithContracts) => {
@@ -808,6 +795,7 @@ const ContractPage: React.FC = () => {
                         setSelectedUpdateContractType(latestContract.contractType || '');
                         updateForm.setFieldsValue({
                           contractType: latestContract.contractType ?? undefined,
+                          contractCategory: latestContract.contractCategory ?? undefined,
                           contractStartDate: latestContract.contractStartDate ? dayjs(latestContract.contractStartDate) : undefined,
                           contractEndDate: latestContract.contractEndDate ? dayjs(latestContract.contractEndDate) : undefined,
                         });
@@ -853,7 +841,7 @@ const ContractPage: React.FC = () => {
               onClick={() => setViewingContractHistory(record)}
               size="small"
             >
-              <span className="action-text">View Records</span>
+              <span className="action-text">View Contracts</span>
             </Button>
           )}
           {isAdmin && (
@@ -929,7 +917,7 @@ const ContractPage: React.FC = () => {
 
       <div style={{ marginBottom: '16px' }}>
         <Input
-          placeholder="Search by name, department, contract type, end date, or 'expiring soon', 'renewal', 'expired'..."
+          placeholder="Search by name, department, contract type, category, end date, or 'expiring soon', 'renewal', 'expired'..."
           prefix={<SearchOutlined />}
           value={searchText}
           onChange={(e) => handleSearch(e.target.value)}
@@ -965,6 +953,7 @@ const ContractPage: React.FC = () => {
           layout="vertical"
           initialValues={{
             contractType: 'Regular',
+            contractCategory: 'Teaching',
           }}
         >
           <Row gutter={16}>
@@ -1000,25 +989,41 @@ const ContractPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name="contractType"
-            label="Contract Type"
-            rules={[{ required: true, message: 'Please select contract type' }]}
-          >
-            <Select onChange={(value) => {
-              setSelectedContractType(value);
-              if (value === 'Regular') {
-                form.setFieldsValue({ contractEndDate: undefined });
-              }
-              form.validateFields(['contractEndDate']);
-            }}>
-              <Option value="Regular">Regular</Option>
-              <Option value="Contractual">Contractual</Option>
-              <Option value="Probationary">Probationary</Option>
-              <Option value="Temporary">Temporary</Option>
-              <Option value="Part-Time">Part-Time</Option>
-            </Select>
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="contractType"
+                label="Contract Type"
+                rules={[{ required: true, message: 'Please select contract type' }]}
+              >
+                <Select onChange={(value) => {
+                  setSelectedContractType(value);
+                  if (value === 'Regular') {
+                    form.setFieldsValue({ contractEndDate: undefined });
+                  }
+                  form.validateFields(['contractEndDate']);
+                }}>
+                  <Option value="Regular">Regular</Option>
+                  <Option value="Contractual">Contractual</Option>
+                  <Option value="Probationary">Probationary</Option>
+                  <Option value="Temporary">Temporary</Option>
+                  <Option value="Part-Time">Part-Time</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="contractCategory"
+                label="Contract Category"
+                rules={[{ required: true, message: 'Please select contract category' }]}
+              >
+                <Select>
+                  <Option value="Teaching">Teaching</Option>
+                  <Option value="Non-Teaching">Non-Teaching</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item 
             label="Contract Document"
             rules={[{ required: true, message: 'Please select a PDF or image file' }]}
@@ -1087,24 +1092,39 @@ const ContractPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name="contractType"
-            label="Contract Type"
-          >
-            <Select onChange={(value) => {
-              setSelectedUpdateContractType(value);
-              if (value === 'Regular') {
-                updateForm.setFieldsValue({ contractEndDate: undefined });
-              }
-              updateForm.validateFields(['contractEndDate']);
-            }}>
-              <Option value="Regular">Regular</Option>
-              <Option value="Contractual">Contractual</Option>
-              <Option value="Probationary">Probationary</Option>
-              <Option value="Temporary">Temporary</Option>
-              <Option value="Part-Time">Part-Time</Option>
-            </Select>
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="contractType"
+                label="Contract Type"
+              >
+                <Select onChange={(value) => {
+                  setSelectedUpdateContractType(value);
+                  if (value === 'Regular') {
+                    updateForm.setFieldsValue({ contractEndDate: undefined });
+                  }
+                  updateForm.validateFields(['contractEndDate']);
+                }}>
+                  <Option value="Regular">Regular</Option>
+                  <Option value="Contractual">Contractual</Option>
+                  <Option value="Probationary">Probationary</Option>
+                  <Option value="Temporary">Temporary</Option>
+                  <Option value="Part-Time">Part-Time</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="contractCategory"
+                label="Contract Category"
+              >
+                <Select>
+                  <Option value="Teaching">Teaching</Option>
+                  <Option value="Non-Teaching">Non-Teaching</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item 
             label="Contract Document (Optional)"
             extra="Only PDF and image files (JPG, PNG, GIF, WebP, BMP) are allowed. Maximum file size: 10MB."
@@ -1230,31 +1250,37 @@ const ContractPage: React.FC = () => {
                         size="small" 
                         style={{ 
                           marginBottom: 16,
-                          border: isLatest ? '2px solid #1890ff' : '1px solid #d9d9d9'
+                          border: isLatest ? '2px solid #1890ff' : '1px solid #d9d9d9',
+                          maxWidth: '100%'
                         }}
                       >
                         <Space direction="vertical" style={{ width: '100%' }} size="small">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Space>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                            <Space wrap>
                               <Tag color={statusColor}>{statusText}</Tag>
+                              <Tag color={contract.contractCategory === 'Teaching' ? 'blue' : 'green'}>
+                                {contract.contractCategory || 'Not specified'}
+                              </Tag>
                               {isLatest && <Tag color="blue">Current</Tag>}
                             </Space>
-                            <Space>
+                            <Space className="contract-history-actions" wrap>
                               <Button
                                 type="link"
                                 icon={<EyeOutlined />}
                                 onClick={() => handlePreview(contract)}
                                 size="small"
+                                title="View"
                               >
-                                View
+                                <span className="action-text">View</span>
                               </Button>
                               <Button
                                 type="link"
                                 icon={<DownloadOutlined />}
                                 onClick={() => handleDownload(contract.contractID!, contract.fileName || 'contract')}
                                 size="small"
+                                title="Download"
                               >
-                                Download
+                                <span className="action-text">Download</span>
                               </Button>
                               {isAdmin && (
                                 <>
@@ -1266,6 +1292,7 @@ const ContractPage: React.FC = () => {
                                       setSelectedUpdateContractType(contract.contractType || '');
                                       updateForm.setFieldsValue({
                                         contractType: contract.contractType ?? undefined,
+                                        contractCategory: contract.contractCategory ?? undefined,
                                         contractStartDate: contract.contractStartDate ? dayjs(contract.contractStartDate) : undefined,
                                         contractEndDate: contract.contractEndDate ? dayjs(contract.contractEndDate) : undefined,
                                       });
@@ -1273,8 +1300,9 @@ const ContractPage: React.FC = () => {
                                       setViewingContractHistory(null);
                                     }}
                                     size="small"
+                                    title="Edit"
                                   >
-                                    Edit
+                                    <span className="action-text">Edit</span>
                                   </Button>
                                   <Popconfirm
                                     title="Delete Contract"
@@ -1289,8 +1317,9 @@ const ContractPage: React.FC = () => {
                                       danger
                                       size="small"
                                       loading={deleting}
+                                      title="Delete"
                                     >
-                                      Delete
+                                      <span className="action-text">Delete</span>
                                     </Button>
                                   </Popconfirm>
                                 </>
@@ -1300,11 +1329,17 @@ const ContractPage: React.FC = () => {
 
                           <Divider style={{ margin: '8px 0' }} />
 
+                          {/* Rest of the contract details remain the same */}
                           <Row gutter={[16, 8]}>
                             <Col span={12}>
                               <Text type="secondary">Contract Type:</Text>
                               <br />
                               <Text strong>{contract.contractType || 'Not specified'}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text type="secondary">Contract Category:</Text>
+                              <br />
+                              <Text strong>{contract.contractCategory || 'Not specified'}</Text>
                             </Col>
                             <Col span={12}>
                               <Text type="secondary">File Name:</Text>

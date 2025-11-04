@@ -32,6 +32,7 @@ export const ContractService = {
       contractStartDate: string;
       contractEndDate?: string;
       lastUpdatedBy: number;
+      contractCategory?: string;
     }
   ): Promise<Contract> {
     try {
@@ -66,6 +67,10 @@ export const ContractService = {
       
       formData.append('lastUpdatedBy', contractData.lastUpdatedBy.toString());
 
+       if (contractData.contractCategory) {
+      formData.append('contractCategory', contractData.contractCategory);
+    }
+
       const response = await axios.post(API_URL, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -86,6 +91,7 @@ export const ContractService = {
       contractEndDate?: string;
       lastUpdatedBy: number;
       file?: File;
+      contractCategory?: string;
     }
   ): Promise<Contract> {
     try {
@@ -124,6 +130,10 @@ export const ContractService = {
         formData.append('file', contractData.file);
       }
       formData.append('lastUpdatedBy', contractData.lastUpdatedBy.toString());
+
+      if (contractData.contractCategory) {
+      formData.append('contractCategory', contractData.contractCategory);
+    }
 
       const response = await axios.put(`${API_URL}/${contractId}`, formData, {
         headers: {

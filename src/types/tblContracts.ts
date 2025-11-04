@@ -17,6 +17,7 @@ export interface Contract {
   filePath?: string;
   fileType?: string;
   fileSize?: number;
+  contractCategory?: string;
 }
 
 export interface EmployeeWithContracts extends Employee {
