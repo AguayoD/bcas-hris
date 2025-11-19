@@ -65,7 +65,6 @@ const UserService = {
       throw error;
     }
   },
-  
 
   // New method to check if user can be deleted
   checkCanDelete: async (userId: number): Promise<boolean> => {
@@ -89,17 +88,30 @@ const UserService = {
     }
   },
   
+  // Updated method to create user for employee with email support
   createUserForEmployee: async (userData: tblUsersTypes): Promise<any> => {
     try {
       const response = await axios.post(`${API_URL}/Users`, userData);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating user for employee:', error);
-      throw error;
+      
+      // Enhanced error handling
+      if (error.response?.status === 409) {
+        throw new Error('Username already exists. Please choose a different username.');
+      }
+      
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || error.response?.data || 'Invalid user data';
+        throw new Error(errorMessage);
+      }
+      
+      throw new Error('Failed to create user account. Please try again.');
     }
   },
-  //Forgot Password
-    forgotPassword: async (email: string): Promise<any> => {
+
+  // Forgot Password
+  forgotPassword: async (email: string): Promise<any> => {
     try {
       const dto: ForgotPasswordDTO = { email };
       const response = await axios.post(`${API_URL}/Users/forgot-password`, dto);
@@ -133,6 +145,5 @@ const UserService = {
     }
   }
 };
-
 
 export default UserService;

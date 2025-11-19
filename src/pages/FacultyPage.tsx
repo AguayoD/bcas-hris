@@ -47,6 +47,7 @@ import { EducationalAttainmentTypes } from "../types/tblEducationalAttainment";
 import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
+import { tblUsersTypes } from "../types/tblUsers";
 
 dayjs.extend(isBetween);
 
@@ -946,22 +947,36 @@ const FacultyPage: React.FC = () => {
   };
 
   const handleSubmitUserAccount = async () => {
-    try {
-      const values = await userForm.validateFields();
-      setLoading(true);
+  try {
+    const values = await userForm.validateFields();
+    setLoading(true);
 
-      await UserService.createUserForEmployee(values);
-      message.success("User account created successfully");
-      setIsUserModalVisible(false);
-      userForm.resetFields();
-      setSelectedEmployee(null);
-    } catch (err: any) {
-      message.error(err.message || "Failed to create user account");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Prepare user data with all required fields including email
+    const userData: tblUsersTypes = {
+      firstName: selectedEmployee?.firstName || '',
+      lastName: selectedEmployee?.lastName || '',
+      username: values.username,
+      newPassword: values.newPassword,
+      roleId: values.roleId,
+      employeeId: selectedEmployee?.employeeID || null,
+      email: selectedEmployee?.email || '' // Make sure this is included
+    };
+
+    console.log('Creating user with data:', userData); // For debugging
+
+    await UserService.createUserForEmployee(userData);
+    
+    message.success("User account created successfully and credentials sent via email");
+    setIsUserModalVisible(false);
+    userForm.resetFields();
+    setSelectedEmployee(null);
+  } catch (err: any) {
+    console.error('Error creating user account:', err);
+    message.error(err.message || "Failed to create user account");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleViewDetails = (record: Employee) => {
     setSelectedEmployeeDetails(record);

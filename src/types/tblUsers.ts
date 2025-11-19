@@ -7,6 +7,7 @@ export type tblUsersTypes = {
   roleId: number | null;
   employeeId: number | null;
   isActive?: boolean | null;
+  email?: string | null; // Added for email credentials
 };
 
 export type UserListItem = {
@@ -18,6 +19,7 @@ export type UserListItem = {
   firstName?: string | null;
   lastName?: string | null;
   roleName?: string | null;
+  email?: string | null; // Added for consistency
 };
 
 export type Role = {

@@ -35,6 +35,7 @@ const LoginPage: React.FC = () => {
           roles: [
             { roleId: 1, roleName: "admin" }
           ],
+          departmentId: undefined
         },
       };
 
