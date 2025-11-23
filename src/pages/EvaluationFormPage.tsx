@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import axios from "../api/_axiosInstance";
 import DepartmentService from "../api/DepartmentService";
-import { Spin, Input, Button, message, Alert, Card, Progress } from "antd";
+import { Spin, Input, Button, message, Alert, Card, Progress, DatePicker } from "antd";
 import { EditOutlined, DeleteOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import './EvaluationPage.css';
 import { ROLES } from "../types/auth";
 import { useAuth } from "../types/useAuth";
+import dayjs from 'dayjs';
 
 // Types
 type ScoreChoice = {
@@ -105,6 +106,7 @@ const EvaluationFormPage = () => {
   const [editing, setEditing] = useState<boolean>(false);
   const [missingScores, setMissingScores] = useState<number[]>([]);
   const [currentEfficiencyRating, setCurrentEfficiencyRating] = useState<number>(0);
+  const [evaluationDate, setEvaluationDate] = useState<dayjs.Dayjs>(dayjs());
   
   const { user } = useAuth();
   
@@ -451,6 +453,15 @@ const EvaluationFormPage = () => {
       return;
     }
 
+    // Validate evaluation date
+    const selectedDate = evaluationDate;
+    const today = dayjs();
+    
+    if (selectedDate > today) {
+      message.error("Evaluation date cannot be in the future.");
+      return;
+    }
+
     if (isCoordinator) {
       const targetEmployeeRole = employeeRoles[selectedEmployeeID];
       if (targetEmployeeRole === ROLES.Coordinator) {
@@ -500,7 +511,7 @@ const EvaluationFormPage = () => {
     const evaluation: Evaluation = {
       employeeID: selectedEmployeeID,
       evaluatorID: user.employeeId,
-      evaluationDate: new Date().toISOString(),
+      evaluationDate: evaluationDate.format('YYYY-MM-DD'),
       comments: comments,
       scores: scores,
       finalScore: finalScore,
@@ -509,6 +520,7 @@ const EvaluationFormPage = () => {
     console.log('Submitting evaluation:', {
       employeeID: evaluation.employeeID,
       evaluatorID: evaluation.evaluatorID,
+      evaluationDate: evaluation.evaluationDate,
       scoresCount: evaluation.scores.length,
       scores: evaluation.scores,
       comments: evaluation.comments,
@@ -546,6 +558,7 @@ const EvaluationFormPage = () => {
         setScores([]);
         setMissingScores([]);
         setCurrentEfficiencyRating(0);
+        setEvaluationDate(dayjs()); // Reset to current date
       })
       .catch((err: any) => {
         console.error("Error submitting evaluation:", err);
@@ -557,7 +570,7 @@ const EvaluationFormPage = () => {
       });
   };
 
-  // Group editing functions (keeping existing implementations)
+  // Group editing functions
   const startEditingGroup = (groupID: number) => {
     setGroups(prev => prev.map(group => {
       if (group.groupID === groupID) {
@@ -998,7 +1011,7 @@ const EvaluationFormPage = () => {
               </div>
             )}
 
-            <div className="form-group">
+            <div className="form-group" style={{ marginBottom: 16 }}>
               <label>Select Employee: </label>
               <select
                 value={selectedEmployeeID ?? ""}
@@ -1061,6 +1074,27 @@ const EvaluationFormPage = () => {
                   }
                 </div>
               )}
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold' }}>
+                Evaluation Date:
+              </label>
+              <DatePicker
+                value={evaluationDate}
+                onChange={(date) => setEvaluationDate(date || dayjs())}
+                format="MMMM DD, YYYY"
+                style={{ width: '100%', maxWidth: '300px' }}
+                disabledDate={(current) => {
+                  // Cannot select future dates
+                  return current && current > dayjs().endOf('day');
+                }}
+                size="large"
+                placeholder="Select evaluation date"
+              />
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                Select the date when the evaluation was conducted
+              </div>
             </div>
           </div>
 

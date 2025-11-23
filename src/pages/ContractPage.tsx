@@ -9,7 +9,8 @@ import {
   EditOutlined,
   SearchOutlined,
   HistoryOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  NotificationOutlined
 } from "@ant-design/icons";
 import { 
   Button, 
@@ -200,6 +201,21 @@ const ContractPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Add this function for manual expiration check
+    const manuallyCheckExpirations = async () => {
+    try {
+      setLoading(true);
+      // Use the service method instead of direct axios call
+      const response = await ContractService.checkExpirations();
+      message.success(response.message || 'Contract expiration check completed successfully');
+    } catch (error: any) {
+      console.error('Error checking contract expirations:', error);
+      message.error(error.response?.data?.message || 'Failed to check contract expirations');
+    } finally {
+      setLoading(false);
+    }
+    };
 
   const getDepartmentName = (departmentId: number | null | undefined): string => {
     if (departmentId == null) return 'Unknown';
@@ -915,16 +931,33 @@ const ContractPage: React.FC = () => {
         </h2>
       </div>
 
+      {/* Updated Search Section with Manual Check Button */}
       <div style={{ marginBottom: '16px' }}>
-        <Input
-          placeholder="Search by name, department, contract type, category, end date, or 'expiring soon', 'renewal', 'expired'..."
-          prefix={<SearchOutlined />}
-          value={searchText}
-          onChange={(e) => handleSearch(e.target.value)}
-          allowClear
-          size="large"
-          style={{ maxWidth: '600px' }}
-        />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <Input
+            placeholder="Search by name, department, contract type, category, end date, or 'expiring soon', 'renewal', 'expired'..."
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={(e) => handleSearch(e.target.value)}
+            allowClear
+            size="large"
+            style={{ maxWidth: '600px', flex: 1 }}
+          />
+          
+          {/* Manual Expiration Check Button - Only for Admins */}
+          {isAdmin && (
+            <Button
+              type="dashed"
+              icon={<NotificationOutlined />}
+              onClick={manuallyCheckExpirations}
+              loading={loading}
+              size="large"
+              title="Manually check for expiring contracts and send email notifications"
+            >
+              Check Expirations
+            </Button>
+          )}
+        </div>
       </div>
 
       <Table

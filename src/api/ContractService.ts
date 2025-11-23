@@ -238,6 +238,17 @@ export const ContractService = {
       throw error;
     }
   },
+
+  // ADD THIS NEW METHOD
+  async checkExpirations(): Promise<any> {
+    try {
+      const response = await axios.post(`${API_URL}/check-expirations`);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking contract expirations:', error);
+      throw error;
+    }
+  },
 };
 
 export default ContractService;
