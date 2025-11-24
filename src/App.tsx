@@ -18,6 +18,7 @@ import EvaluationFormPage from "./pages/EvaluationFormPage.tsx";
 import EvaluatedPage from "./pages/EvaluatedPage.tsx";
 import EducationalAttainmentPage from "./pages/EducationalAttainmentPage.tsx";
 import EmploymentStatusPage from "./pages/EmploymentStatusPage.tsx";
+import AuditLogPage from "./pages/AuditLogPage.tsx";
 
 function App() {
   return (
@@ -50,6 +51,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <DepartmentPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/audit-log" 
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
+                <AuditLogPage />
               </ProtectedRoute>
             } 
           />

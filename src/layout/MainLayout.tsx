@@ -148,6 +148,11 @@ const MainLayout = () => {
             icon: <UserOutlined />,
             label: "User Management",
           },
+           {
+            key: "audit-log",
+            icon: <UserOutlined />,
+            label: "Audit Logs",
+          },
         ]
       }
     ] : [];
