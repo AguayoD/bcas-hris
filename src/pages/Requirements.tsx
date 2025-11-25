@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, message } from "antd";
+import { Button, message, Modal } from "antd";
 import { useAuth } from "../types/useAuth";
 import { ROLES } from "../types/auth";
 
@@ -39,6 +39,7 @@ interface RequirementsProps {
 const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
   const [filesMap, setFilesMap] = useState<{ [key: string]: FileList | null }>({});
   const [uploadedFiles, setUploadedFiles] = useState<{ [docType: string]: UploadedFile }>({});
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const { user } = useAuth();
   
   // Check permissions - only the employee themselves can upload
@@ -92,8 +93,42 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
     }));
   };
 
-  // Upload files, then refetch uploaded files list
-  const handleSubmit = async () => {
+  // Helper function to get file names from FileList
+  const getFileNames = (files: FileList | null): string[] => {
+    if (!files) return [];
+    const names: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      names.push(files[i].name);
+    }
+    return names;
+  };
+
+  // Show confirmation modal
+  const showConfirmationModal = () => {
+    // Check if any files are selected
+    const hasFilesSelected = Object.values(filesMap).some(files => files && files.length > 0);
+    
+    if (!hasFilesSelected) {
+      message.info("No files selected to upload.");
+      return;
+    }
+
+    setIsModalVisible(true);
+  };
+
+  // Handle modal confirmation
+  const handleConfirmSubmit = async () => {
+    setIsModalVisible(false);
+    await performUpload();
+  };
+
+  // Handle modal cancellation
+  const handleCancelSubmit = () => {
+    setIsModalVisible(false);
+  };
+
+  // Actual upload logic
+  const performUpload = async () => {
     if (!employeeId) {
       message.error("Employee ID is missing");
       return;
@@ -203,6 +238,21 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
 
   return (
     <div className="requirements-container">
+      {/* Confirmation Modal */}
+      <Modal
+        title="Confirm Submission"
+        open={isModalVisible}
+        onOk={handleConfirmSubmit}
+        onCancel={handleCancelSubmit}
+        okText="Yes, Submit Requirements"
+        cancelText="Cancel"
+      >
+        <p>Are you sure you want to submit these requirements?</p>
+        <p style={{ color: '#666', fontSize: '14px' }}>
+          This will upload all selected files. You can upload additional files later if needed.
+        </p>
+      </Modal>
+      
       {!canUploadRequirements && (
         <div style={{ 
           textAlign: 'center', 
@@ -220,6 +270,8 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
       <div className="requirement-section">
         {DOCUMENTS.map((doc) => {
           const uploadedFile = uploadedFiles[doc.label];
+          const selectedFiles = filesMap[doc.id];
+          const selectedFileNames = getFileNames(selectedFiles);
 
           return (
             <div className="requirement-item" key={doc.id} style={{ marginBottom: 16 }}>
@@ -247,8 +299,10 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
                       Select File{doc.multiple ? "(s)" : ""}
                     </Button>
                     <div>
-                      {filesMap[doc.id]
-                        ? `${filesMap[doc.id]!.length} file${filesMap[doc.id]!.length > 1 ? "s" : ""} selected`
+                      {selectedFiles && selectedFiles.length > 0
+                        ? `${selectedFiles.length} file${selectedFiles.length > 1 ? "s" : ""} selected`
+                        : uploadedFile
+                        ? "File already uploaded"
                         : "No file selected"}
                     </div>
                   </>
@@ -268,6 +322,20 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
                   </Button>
                 )}
               </div>
+              
+              {/* Show selected file names */}
+              {selectedFileNames.length > 0 && (
+                <div style={{ fontSize: '12px', color: '#1890ff', marginTop: '4px' }}>
+                  Selected: {selectedFileNames.join(', ')}
+                </div>
+              )}
+              
+              {/* Show uploaded file name */}
+              {uploadedFile && !selectedFileNames.length && (
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  Current file: {uploadedFile.fileName}
+                </div>
+              )}
             </div>
           );
         })}
@@ -275,7 +343,7 @@ const Requirements: React.FC<RequirementsProps> = ({ employeeId }) => {
 
       {canUploadRequirements && (
         <div className="requirements-actions" style={{ marginTop: 24 }}>
-          <Button type="primary" onClick={handleSubmit}>
+          <Button type="primary" onClick={showConfirmationModal}>
             Submit Requirements
           </Button>
         </div>

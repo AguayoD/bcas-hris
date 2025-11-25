@@ -28,7 +28,9 @@ const UserManagementPage: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserListItem | null>(null);
-  const [modalKey, setModalKey] = useState<string>(''); // Add this for forcing re-render
+  const [modalKey, setModalKey] = useState<string>('');
+  const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<any>(null);
 
   const roles: Role[] = [
     { roleId: 1, roleName: "Admin" },
@@ -128,9 +130,19 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleFormFinish = async (values: any) => {
+    setFormValues(values);
+    if (editingId) {
+      // Show popconfirm for updates
+      setSubmitPopconfirmVisible(true);
+    } else {
+      // Direct submit for creates
+      handleSubmit(values);
+    }
+  };
+
+  const handleSubmit = async (values: any) => {
     try {
-      const values = await form.validateFields();
       console.log('Form values on submit:', values);
       setLoading(true);
 
@@ -167,12 +179,26 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
+  const handleConfirmUpdate = () => {
+    if (formValues) {
+      handleSubmit(formValues);
+    }
+    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+  };
+
+  const handleCancelUpdate = () => {
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+  };
+
   const handleModalCancel = () => {
     console.log('Modal cancelled');
     setIsModalVisible(false);
+    setSubmitPopconfirmVisible(false);
     form.resetFields();
     setEditingId(null);
     setSelectedUser(null);
+    setFormValues(null);
     setModalKey('');
   };
 
@@ -312,13 +338,13 @@ const UserManagementPage: React.FC = () => {
         key={modalKey} // Force re-render with unique key
         title={editingId ? "Edit User" : "Add New User"}
         open={isModalVisible}
-        onOk={handleSubmit}
         onCancel={handleModalCancel}
         confirmLoading={loading}
         width={500}
         maskClosable={false}
         destroyOnClose={true} // Destroy form when modal closes
         forceRender={false} // Don't force render
+        footer={null} // Remove default footer to use custom one
       >
         <Form 
           form={form} 
@@ -334,6 +360,7 @@ const UserManagementPage: React.FC = () => {
               isActive: selectedUser.isActive,
             } : {}
           } // Set initial values directly on form
+          onFinish={handleFormFinish}
         >
           <Form.Item name="userId" hidden>
             <Input />
@@ -384,11 +411,37 @@ const UserManagementPage: React.FC = () => {
               <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
             </Form.Item>
           )}
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Popconfirm
+                title="Are you sure you want to update this user?"
+                open={submitPopconfirmVisible}
+                onConfirm={handleConfirmUpdate}
+                onCancel={handleCancelUpdate}
+                okText="Yes"
+                cancelText="No"
+              >
+                <span>
+                  {/* Empty span wrapper for Popconfirm */}
+                </span>
+              </Popconfirm>
+              <Button onClick={handleModalCancel}>
+                Cancel
+              </Button>
+              <Button 
+                type="primary" 
+                htmlType="submit"
+                loading={loading}
+              >
+                {editingId ? "Update" : "Create"}
+              </Button>
+            </Space>
+          </Form.Item>
         </Form>
       </Modal>
     </Card>
   );
 };
-
 
 export default UserManagementPage;

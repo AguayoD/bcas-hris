@@ -128,6 +128,10 @@ const ContractPage: React.FC = () => {
   const [selectedContractType, setSelectedContractType] = useState<string>('Regular');
   const [selectedUpdateContractType, setSelectedUpdateContractType] = useState<string>('');
 
+  // Update confirmation states
+  const [updatePopconfirmVisible, setUpdatePopconfirmVisible] = useState<boolean>(false);
+  const [updateFormValues, setUpdateFormValues] = useState<any>(null);
+
   const [form] = Form.useForm<ContractFormData>();
   const [updateForm] = Form.useForm<ContractUpdateFormData>();
 
@@ -203,7 +207,7 @@ const ContractPage: React.FC = () => {
   };
 
   // Add this function for manual expiration check
-    const manuallyCheckExpirations = async () => {
+  const manuallyCheckExpirations = async () => {
     try {
       setLoading(true);
       // Use the service method instead of direct axios call
@@ -215,7 +219,7 @@ const ContractPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-    };
+  };
 
   const getDepartmentName = (departmentId: number | null | undefined): string => {
     if (departmentId == null) return 'Unknown';
@@ -484,63 +488,80 @@ const ContractPage: React.FC = () => {
     }
   };
 
-  const handleUpdate = async () => {
+  const handleUpdateFormFinish = async (values: any) => {
+    setUpdateFormValues(values);
+    setUpdatePopconfirmVisible(true);
+  };
+
+  const handleUpdate = async (values: any) => {
     try {
-      const values = await updateForm.validateFields();
+      setUpdating(true);
       
-      if (updatingContract) {
-        setUpdating(true);
+      const updateData: any = {
+        lastUpdatedBy: user?.employeeId || 0
+      };
+
+      if (values.contractType) {
+        updateData.contractType = values.contractType;
+      }
+      if (values.contractCategory) {
+        updateData.contractCategory = values.contractCategory;
+      }
+      if (values.contractStartDate) {
+        updateData.contractStartDate = values.contractStartDate.format('YYYY-MM-DD');
+      }
+      // Handle contract end date based on contract type
+      if (values.contractType === 'Regular') {
+        updateData.contractEndDate = ''; // Empty for Regular contracts
+      } else if (values.contractEndDate) {
+        updateData.contractEndDate = values.contractEndDate.format('YYYY-MM-DD');
+      } else if (values.contractType && values.contractType !== 'Regular') {
+        // If changing to non-Regular without end date, keep existing or set to empty
+        updateData.contractEndDate = updatingContract.contractEndDate || '';
+      }
+
+      if (updateFileList.length > 0) {
+        updateData.file = updateFileList[0].originFileObj as File;
+      }
+
+      try {
+        await ContractService.update(
+          updatingContract.contractID!,
+          updateData
+        );
         
-        const updateData: any = {
-          lastUpdatedBy: user?.employeeId || 0
-        };
-
-        if (values.contractType) {
-          updateData.contractType = values.contractType;
-        }
-        if (values.contractCategory) {
-          updateData.contractCategory = values.contractCategory;
-        }
-        if (values.contractStartDate) {
-          updateData.contractStartDate = values.contractStartDate.format('YYYY-MM-DD');
-        }
-        // Handle contract end date based on contract type
-        if (values.contractType === 'Regular') {
-          updateData.contractEndDate = ''; // Empty for Regular contracts
-        } else if (values.contractEndDate) {
-          updateData.contractEndDate = values.contractEndDate.format('YYYY-MM-DD');
-        } else if (values.contractType && values.contractType !== 'Regular') {
-          // If changing to non-Regular without end date, keep existing or set to empty
-          updateData.contractEndDate = updatingContract.contractEndDate || '';
-        }
-
-        if (updateFileList.length > 0) {
-          updateData.file = updateFileList[0].originFileObj as File;
-        }
-
-        try {
-          await ContractService.update(
-            updatingContract.contractID!,
-            updateData
-          );
-          
-          message.success("Contract updated successfully");
-          await fetchData(); // Refresh data
-          
-          setUpdatingContract(null);
-          setUpdateFileList([]);
-          updateForm.resetFields();
-        } catch (error) {
-          console.error("Failed to update contract:", error);
-          message.error("Failed to update contract");
-        } finally {
-          setUpdating(false);
-        }
+        message.success("Contract updated successfully");
+        await fetchData(); // Refresh data
+        
+        setUpdatingContract(null);
+        setUpdateFileList([]);
+        updateForm.resetFields();
+        setUpdatePopconfirmVisible(false);
+        setUpdateFormValues(null);
+      } catch (error) {
+        console.error("Failed to update contract:", error);
+        message.error("Failed to update contract");
+        setUpdatePopconfirmVisible(false);
+      } finally {
+        setUpdating(false);
       }
     } catch (error) {
       console.error("Validation failed:", error);
       message.error("Please fill in all required fields");
+      setUpdatePopconfirmVisible(false);
     }
+  };
+
+  const handleConfirmUpdate = () => {
+    if (updateFormValues) {
+      handleUpdate(updateFormValues);
+    }
+    setUpdatePopconfirmVisible(false);
+  };
+
+  const handleCancelUpdate = () => {
+    setUpdatePopconfirmVisible(false);
+    setUpdateFormValues(null);
   };
 
   const handleDeleteContract = async (contractId: number) => {
@@ -1083,15 +1104,51 @@ const ContractPage: React.FC = () => {
           setUpdatingContract(null);
           setUpdateFileList([]);
           updateForm.resetFields();
+          setUpdatePopconfirmVisible(false);
+          setUpdateFormValues(null);
         }}
-        onOk={handleUpdate}
-        confirmLoading={updating}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setUpdatingContract(null);
+              setUpdateFileList([]);
+              updateForm.resetFields();
+              setUpdatePopconfirmVisible(false);
+              setUpdateFormValues(null);
+            }}
+          >
+            Cancel
+          </Button>,
+          <Popconfirm
+            key="popconfirm"
+            title="Are you sure you want to update this contract?"
+            open={updatePopconfirmVisible}
+            onConfirm={handleConfirmUpdate}
+            onCancel={handleCancelUpdate}
+            okText="Yes"
+            cancelText="No"
+          >
+            <span>
+              {/* Empty span wrapper for Popconfirm */}
+            </span>
+          </Popconfirm>,
+          <Button
+            key="update"
+            type="primary"
+            loading={updating}
+            onClick={() => updateForm.submit()}
+          >
+            Update
+          </Button>,
+        ]}
         width={600}
         okText="Update"
       >
         <Form
           form={updateForm}
           layout="vertical"
+          onFinish={handleUpdateFormFinish}
         >
           <Row gutter={16}>
             <Col span={12}>

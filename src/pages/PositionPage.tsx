@@ -30,6 +30,8 @@ const PositionPage: React.FC = () => {
   const [editingPositionId, setEditingPositionId] = useState<number | null>(
     null
   );
+  const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<PositionTypes | null>(null);
 
   useEffect(() => {
     fetchPositions();
@@ -87,9 +89,20 @@ const PositionPage: React.FC = () => {
       setLoading(false);
     }
   };
-  const handleSubmit = async () => {
+
+  const handleFormFinish = async (values: PositionTypes) => {
+    setFormValues(values);
+    if (editingPositionId) {
+      // Show popconfirm for updates
+      setSubmitPopconfirmVisible(true);
+    } else {
+      // Direct submit for creates
+      handleSubmit(values);
+    }
+  };
+
+  const handleSubmit = async (values: PositionTypes) => {
     try {
-      const values = await form.validateFields();
       setLoading(true);
 
       if (editingPositionId) {
@@ -107,13 +120,37 @@ const PositionPage: React.FC = () => {
       }
 
       setModalVisible(false);
+      setSubmitPopconfirmVisible(false);
+      form.resetFields();
+      setFormValues(null);
       fetchPositions();
     } catch (error) {
       console.error("Form validation or submission error:", error);
       message.error("Operation failed. Please check your data and try again.");
+      setSubmitPopconfirmVisible(false);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmUpdate = () => {
+    if (formValues) {
+      handleSubmit(formValues);
+    }
+    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+  };
+
+  const handleCancelUpdate = () => {
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+  };
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+    setEditingPositionId(null);
+    form.resetFields();
   };
 
   const columns: ColumnsType<PositionTypes> = [
@@ -190,23 +227,12 @@ const PositionPage: React.FC = () => {
       <Modal
         title={modalTitle}
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setModalVisible(false)}>
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            loading={loading}
-            onClick={handleSubmit}
-          >
-            Save
-          </Button>,
-        ]}
+        onCancel={handleModalClose}
+        footer={null}
+        width={600}
       >
         <Spin spinning={loading}>
-          <Form form={form} layout="vertical" name="positionForm">
+          <Form form={form} layout="vertical" name="positionForm" onFinish={handleFormFinish}>
             <Form.Item
               name="positionName"
               label="Position Name"
@@ -234,6 +260,31 @@ const PositionPage: React.FC = () => {
               ]}
             >
               <Input.TextArea rows={4} placeholder="Enter description" />
+            </Form.Item>
+
+            <Form.Item>
+              <Space>
+                <Popconfirm
+                  title="Are you sure you want to update this position?"
+                  open={submitPopconfirmVisible}
+                  onConfirm={handleConfirmUpdate}
+                  onCancel={handleCancelUpdate}
+                  okText="Yes"
+                  cancelText="No"
+                >
+                  <span>
+                    {/* Empty span wrapper for Popconfirm */}
+                  </span>
+                </Popconfirm>
+                <Button 
+                  type="primary" 
+                  htmlType="submit"
+                  loading={loading}
+                >
+                  {editingPositionId ? "Update" : "Create"}
+                </Button>
+                <Button onClick={handleModalClose}>Cancel</Button>
+              </Space>
             </Form.Item>
           </Form>
         </Spin>

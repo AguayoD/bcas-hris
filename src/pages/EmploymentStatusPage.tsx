@@ -29,6 +29,8 @@ const EmploymentStatusPage: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
   const [editingStatus, setEditingStatus] = useState<EmploymentStatusTypes | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+  const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<EmploymentStatusTypes | null>(null);
 
   useEffect(() => {
     fetchEmploymentStatuses();
@@ -64,8 +66,10 @@ const EmploymentStatusPage: React.FC = () => {
         message.success("Employment status created successfully");
       }
       setIsModalVisible(false);
+      setSubmitPopconfirmVisible(false); // Close popconfirm
       form.resetFields();
       setEditingStatus(null);
+      setFormValues(null);
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
       message.error(
@@ -74,7 +78,31 @@ const EmploymentStatusPage: React.FC = () => {
           : "Failed to create employment status"
       );
       console.error(error);
+      setSubmitPopconfirmVisible(false); // Close popconfirm even on error
     }
+  };
+
+  const handleFormFinish = (values: EmploymentStatusTypes) => {
+    setFormValues(values);
+    if (editingStatus) {
+      // Show popconfirm for updates
+      setSubmitPopconfirmVisible(true);
+    } else {
+      // Direct submit for creates
+      handleSubmit(values);
+    }
+  };
+
+  const handleConfirmUpdate = () => {
+    if (formValues) {
+      handleSubmit(formValues);
+    }
+    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+  };
+
+  const handleCancelUpdate = () => {
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
   };
 
   const handleDelete = async (statusId: number) => {
@@ -102,7 +130,14 @@ const EmploymentStatusPage: React.FC = () => {
     form.resetFields();
     form.setFieldsValue({ isActive: true });
     setIsModalVisible(true);
-    
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+    setEditingStatus(null);
+    form.resetFields();
   };
 
   const columns: ColumnsType<EmploymentStatusTypes> = [
@@ -175,11 +210,11 @@ const EmploymentStatusPage: React.FC = () => {
       <Modal
         title={editingStatus ? "Edit Employment Status" : "Add Employment Status"}
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={handleModalClose}
         footer={null}
         width={600}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout="vertical" onFinish={handleFormFinish}>
           <Form.Item
             name="statusName"
             label="Status Name"
@@ -203,10 +238,25 @@ const EmploymentStatusPage: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Popconfirm
+                title="Are you sure you want to update this employment status?"
+                open={submitPopconfirmVisible}
+                onConfirm={handleConfirmUpdate}
+                onCancel={handleCancelUpdate}
+                okText="Yes"
+                cancelText="No"
+              >
+                <span>
+                  {/* Empty span wrapper for Popconfirm */}
+                </span>
+              </Popconfirm>
+              <Button 
+                type="primary" 
+                htmlType="submit"
+              >
                 {editingStatus ? "Update" : "Create"}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>Cancel</Button>
+              <Button onClick={handleModalClose}>Cancel</Button>
             </Space>
           </Form.Item>
         </Form>

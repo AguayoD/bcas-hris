@@ -29,6 +29,8 @@ const DepartmentPage: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
   const [editingDepartment, setEditingDepartment] = useState<DepartmentTypes | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+  const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<DepartmentTypes | null>(null);
 
   useEffect(() => {
     fetchDepartments();
@@ -64,8 +66,10 @@ const DepartmentPage: React.FC = () => {
         message.success("Department created successfully");
       }
       setIsModalVisible(false);
+      setSubmitPopconfirmVisible(false); // Close popconfirm
       form.resetFields();
       setEditingDepartment(null);
+      setFormValues(null);
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
       message.error(
@@ -74,7 +78,31 @@ const DepartmentPage: React.FC = () => {
           : "Failed to create department"
       );
       console.error(error);
+      setSubmitPopconfirmVisible(false); // Close popconfirm even on error
     }
+  };
+
+  const handleFormFinish = (values: DepartmentTypes) => {
+    setFormValues(values);
+    if (editingDepartment) {
+      // Show popconfirm for updates
+      setSubmitPopconfirmVisible(true);
+    } else {
+      // Direct submit for creates
+      handleSubmit(values);
+    }
+  };
+
+  const handleConfirmUpdate = () => {
+    if (formValues) {
+      handleSubmit(formValues);
+    }
+    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+  };
+
+  const handleCancelUpdate = () => {
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
   };
 
   const handleDelete = async (departmentId: number) => {
@@ -101,6 +129,14 @@ const DepartmentPage: React.FC = () => {
     setEditingDepartment(null);
     form.resetFields();
     setIsModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+    setEditingDepartment(null);
+    form.resetFields();
   };
 
   const columns: ColumnsType<DepartmentTypes> = [
@@ -169,10 +205,10 @@ const DepartmentPage: React.FC = () => {
       <Modal
         title={editingDepartment ? "Edit Department" : "Add Department"}
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={handleModalClose}
         footer={null}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout="vertical" onFinish={handleFormFinish}>
           <Form.Item
             name="departmentName"
             label="Department Name"
@@ -189,10 +225,25 @@ const DepartmentPage: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Popconfirm
+                title="Are you sure you want to update this department?"
+                open={submitPopconfirmVisible}
+                onConfirm={handleConfirmUpdate}
+                onCancel={handleCancelUpdate}
+                okText="Yes"
+                cancelText="No"
+              >
+                <span>
+                  {/* Empty span wrapper for Popconfirm */}
+                </span>
+              </Popconfirm>
+              <Button 
+                type="primary" 
+                htmlType="submit"
+              >
                 {editingDepartment ? "Update" : "Create"}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>Cancel</Button>
+              <Button onClick={handleModalClose}>Cancel</Button>
             </Space>
           </Form.Item>
         </Form>

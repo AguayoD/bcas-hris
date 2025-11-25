@@ -128,7 +128,7 @@ const EvaluatedPage: React.FC = () => {
     });
   };
 
-  // FIXED: Properly determine coordinator department type
+  // Coordinator department type determination
   useEffect(() => {
     if (isCoordinator) {
       console.log('Coordinator detected, determining department type');
@@ -480,6 +480,7 @@ const EvaluatedPage: React.FC = () => {
         evalItem.employeeDepartments?.includes(selectedDepartment)
       );
 
+  // Reset Evaluation Functions
   const showResetConfirmation = () => {
     setIsResetModalVisible(true);
   };
@@ -785,7 +786,7 @@ const EvaluatedPage: React.FC = () => {
     return labels[period] || period;
   };
 
-  // FIXED: Tab visibility functions
+  // Tab visibility functions
   const shouldShowSemesterTab = () => {
     // Allow semester tab for semester-based department coordinators
     if (isCoordinator && coordinatorDepartment) {

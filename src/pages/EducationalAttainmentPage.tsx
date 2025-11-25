@@ -29,6 +29,8 @@ const EducationalAttainmentPage: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
   const [editingAttainment, setEditingAttainment] = useState<EducationalAttainmentTypes | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+  const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<EducationalAttainmentTypes | null>(null);
 
   useEffect(() => {
     fetchAttainments();
@@ -64,8 +66,10 @@ const EducationalAttainmentPage: React.FC = () => {
         message.success("Educational attainment created successfully");
       }
       setIsModalVisible(false);
+      setSubmitPopconfirmVisible(false); // Close popconfirm
       form.resetFields();
       setEditingAttainment(null);
+      setFormValues(null);
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
       message.error(
@@ -74,7 +78,31 @@ const EducationalAttainmentPage: React.FC = () => {
           : "Failed to create educational attainment"
       );
       console.error(error);
+      setSubmitPopconfirmVisible(false); // Close popconfirm even on error
     }
+  };
+
+  const handleFormFinish = (values: EducationalAttainmentTypes) => {
+    setFormValues(values);
+    if (editingAttainment) {
+      // Show popconfirm for updates
+      setSubmitPopconfirmVisible(true);
+    } else {
+      // Direct submit for creates
+      handleSubmit(values);
+    }
+  };
+
+  const handleConfirmUpdate = () => {
+    if (formValues) {
+      handleSubmit(formValues);
+    }
+    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+  };
+
+  const handleCancelUpdate = () => {
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
   };
 
   const handleDelete = async (attainmentId: number) => {
@@ -103,6 +131,14 @@ const EducationalAttainmentPage: React.FC = () => {
     form.resetFields();
     form.setFieldsValue({ isActive: true });
     setIsModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+    setEditingAttainment(null);
+    form.resetFields();
   };
 
   const columns: ColumnsType<EducationalAttainmentTypes> = [
@@ -175,11 +211,11 @@ const EducationalAttainmentPage: React.FC = () => {
       <Modal
         title={editingAttainment ? "Edit Educational Attainment" : "Add Educational Attainment"}
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={handleModalClose}
         footer={null}
         width={600}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout="vertical" onFinish={handleFormFinish}>
           <Form.Item
             name="attainmentName"
             label="Attainment Name"
@@ -201,20 +237,33 @@ const EducationalAttainmentPage: React.FC = () => {
             <TextArea rows={4} placeholder="Enter attainment description" />
           </Form.Item>
 
-
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Popconfirm
+                title="Are you sure you want to update this educational attainment?"
+                open={submitPopconfirmVisible}
+                onConfirm={handleConfirmUpdate}
+                onCancel={handleCancelUpdate}
+                okText="Yes"
+                cancelText="No"
+              >
+                <span>
+                  {/* Empty span wrapper for Popconfirm */}
+                </span>
+              </Popconfirm>
+              <Button 
+                type="primary" 
+                htmlType="submit"
+              >
                 {editingAttainment ? "Update" : "Create"}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>Cancel</Button>
+              <Button onClick={handleModalClose}>Cancel</Button>
             </Space>
           </Form.Item>
         </Form>
       </Modal>
     </div>
   );
-  
 };
 
 export default EducationalAttainmentPage;

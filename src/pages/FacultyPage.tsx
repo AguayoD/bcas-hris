@@ -183,6 +183,10 @@ const FacultyPage: React.FC = () => {
   // Coordinator department state
   const [, setCoordinatorDepartmentId] = useState<number | null>(null);
 
+  // Update confirmation states
+  const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<any>(null);
+
   // Helper function to check if position should have department
   const shouldHaveDepartment = (positionId?: number): boolean => {
     if (!positionId) return true; // Default to having department
@@ -857,9 +861,19 @@ const FacultyPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleFormFinish = async (values: any) => {
+    setFormValues(values);
+    if (editingId) {
+      // Show popconfirm for updates
+      setSubmitPopconfirmVisible(true);
+    } else {
+      // Direct submit for creates
+      handleSubmit(values);
+    }
+  };
+
+  const handleSubmit = async (values: any) => {
   try {
-    const values = await form.validateFields();
     setLoading(true);
 
     const positionId = Number(values.positionID);
@@ -910,15 +924,30 @@ const FacultyPage: React.FC = () => {
     }
 
     setIsModalVisible(false);
+    setSubmitPopconfirmVisible(false);
     form.resetFields();
     setSelectedEmployee(null);
+    setFormValues(null);
   } catch (err) {
     console.error("Error in handleSubmit:", err);
     message.error("Operation failed. Please check the form and try again.");
+    setSubmitPopconfirmVisible(false);
   } finally {
     setLoading(false);
   }
 };
+
+  const handleConfirmUpdate = () => {
+    if (formValues) {
+      handleSubmit(formValues);
+    }
+    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+  };
+
+  const handleCancelUpdate = () => {
+    setSubmitPopconfirmVisible(false);
+    setFormValues(null);
+  };
 
   const handleAddUserAccount = (record: Employee, e?: React.MouseEvent) => {
     if (e) {
@@ -1500,6 +1529,8 @@ const FacultyPage: React.FC = () => {
           setIsModalVisible(false);
           setSelectedEmployee(null);
           form.resetFields();
+          setSubmitPopconfirmVisible(false);
+          setFormValues(null);
         }}
         footer={[
           <Button
@@ -1508,15 +1539,41 @@ const FacultyPage: React.FC = () => {
               setIsModalVisible(false);
               setSelectedEmployee(null);
               form.resetFields();
+              setSubmitPopconfirmVisible(false);
+              setFormValues(null);
             }}
           >
             Cancel
           </Button>,
+          <Popconfirm
+            key="popconfirm"
+            title="Are you sure you want to update this faculty member?"
+            open={submitPopconfirmVisible}
+            onConfirm={handleConfirmUpdate}
+            onCancel={handleCancelUpdate}
+            okText="Yes"
+            cancelText="No"
+          >
+            <span>
+              {/* Empty span wrapper for Popconfirm */}
+            </span>
+          </Popconfirm>,
           <Button
             key="submit"
             type="primary"
             loading={loading}
-            onClick={handleSubmit}
+            onClick={() => {
+              if (editingId) {
+                // For updates, show popconfirm
+                form.validateFields().then(values => {
+                  setFormValues(values);
+                  setSubmitPopconfirmVisible(true);
+                });
+              } else {
+                // For creates, submit directly
+                form.submit();
+              }
+            }}
           >
             {editingId ? "Update" : "Submit"}
           </Button>,
@@ -1526,7 +1583,7 @@ const FacultyPage: React.FC = () => {
         destroyOnClose
       >
         <div className="modal-form-container">
-          <Form form={form} layout="vertical" requiredMark={false}>
+          <Form form={form} layout="vertical" requiredMark={false} onFinish={handleFormFinish}>
             <Form.Item name="employeeID" hidden>
               <Input />
             </Form.Item>
