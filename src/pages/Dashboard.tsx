@@ -470,6 +470,12 @@ const Dashboard: React.FC = () => {
       type: "info",
       icon: <ClockCircleOutlined />,
     }]),
+    ...(employeeStats.isEvaluated && employeeStats.evaluationScore && employeeStats.evaluationScore >= 4.2 ? [{
+      title: "🎉 Performance Bonus Eligibility",
+      description: "Congratulations! Your evaluation score qualifies you for a performance bonus. To receive this bonus, you must meet the following requirements: no more than 5 late arrivals, no more than 3 absences in the school year, and no memorandums for policy violations.",
+      type: "success",
+      icon: <CheckCircleOutlined />,
+    }] : []),
     ...(employeeStats.daysUntilContractEnd <= 30 && employeeStats.daysUntilContractEnd > 0 ? [{
       title: "Contract Renewal Reminder",
       description: `Your contract expires in ${employeeStats.daysUntilContractEnd} days`,

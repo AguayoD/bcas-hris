@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   Form,
@@ -14,17 +14,13 @@ import {
   DatePicker,
   Grid,
   Tabs,
-  Dropdown,
-  Menu,
   Divider,
-  Checkbox,
 } from "antd";
 import {
   PlusOutlined,
   DeleteOutlined,
   EditOutlined,
   UserOutlined,
-  PrinterOutlined,
   FileExcelOutlined,
   FilterOutlined,
 } from "@ant-design/icons";
@@ -47,7 +43,6 @@ import { EducationalAttainmentTypes } from "../types/tblEducationalAttainment";
 import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
-import { tblUsersTypes } from "../types/tblUsers";
 
 dayjs.extend(isBetween);
 
@@ -57,7 +52,7 @@ const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
 
 // Excel export utility functions
-const exportToExcel = (data: any[], filename: string, category?: string) => {
+const exportToExcel = (data: any[], filename: string) => {
   const headers = [
     "Employee ID",
     "First Name",
@@ -130,9 +125,7 @@ const exportToExcel = (data: any[], filename: string, category?: string) => {
   link.setAttribute("href", url);
   link.setAttribute(
     "download",
-    `${filename}${category ? `_${category}` : ""}_${moment().format(
-      "YYYY-MM-DD"
-    )}.csv`
+    `${filename}_${moment().format("YYYY-MM-DD")}.csv`
   );
   link.style.visibility = "hidden";
   document.body.appendChild(link);
@@ -142,7 +135,6 @@ const exportToExcel = (data: any[], filename: string, category?: string) => {
 
 const FacultyPage: React.FC = () => {
   const [form] = Form.useForm();
-  const [searchText, setSearchText] = useState("");
   const [facultyData, setFacultyData] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [, setError] = useState<string | null>(null);
@@ -165,23 +157,15 @@ const FacultyPage: React.FC = () => {
   const isAdmin = user?.roleId === ROLES.Admin;
   const isCoordinator = user?.roleId === ROLES.Coordinator;
   const isHR = user?.roleId === ROLES.HR;
-  const tableRef = useRef<HTMLDivElement>(null);
 
   // Filter states
+  const [employeeIdFilter, setEmployeeIdFilter] = useState<string>("");
+  const [nameFilter, setNameFilter] = useState<string>("");
   const [genderFilter, setGenderFilter] = useState<string>("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
   const [positionFilter, setPositionFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
-
-  // Print and Export modal states
-  const [printModalVisible, setPrintModalVisible] = useState(false);
-  const [exportModalVisible, setExportModalVisible] = useState(false);
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [selectedExportDepartments, setSelectedExportDepartments] = useState<string[]>([]);
-
-  // Coordinator department state
-  const [, setCoordinatorDepartmentId] = useState<number | null>(null);
 
   // Update confirmation states
   const [submitPopconfirmVisible, setSubmitPopconfirmVisible] = useState<boolean>(false);
@@ -224,463 +208,54 @@ const FacultyPage: React.FC = () => {
     return `${year}-${formattedId}`;
   };
 
-  const getEnhancedFacultyData = () => {
-  return facultyData.map((employee) => {
-    const isValidHireDate = employee.hireDate && moment(employee.hireDate).isValid();
 
-    if (!isValidHireDate) {
-      console.warn(`⚠️ Invalid or missing hireDate for employeeID ${employee.employeeID}`);
-    }
+  const handleExportToExcel = () => {
+    const dataToExport = filteredData;
+    const enhancedData = dataToExport.map((employee) => {
+      const isValidHireDate = employee.hireDate && moment(employee.hireDate).isValid();
 
-    // Helper function to get department name
-    const getDepartmentName = (deptId: number | null | undefined) => {
-      if (!deptId) return "N/A";
-      return departments.find((d) => d.departmentID === deptId)?.departmentName || "N/A";
-    };
+      const getDepartmentName = (deptId: number | null | undefined) => {
+        if (!deptId) return "N/A";
+        return departments.find((d) => d.departmentID === deptId)?.departmentName || "N/A";
+      };
 
-    return {
-      ...employee,
-      formattedId: isValidHireDate
-        ? formatEmployeeId(employee.employeeID, employee.hireDate)
-        : "Invalid-Date",
-      departmentName: shouldHaveDepartment(employee.positionID)
-        ? getDepartmentName(employee.departmentID)
-        : "N/A",
-      departmentName2: shouldHaveDepartment(employee.positionID)
-        ? getDepartmentName(employee.departmentID2)
-        : "N/A",
-      departmentName3: shouldHaveDepartment(employee.positionID)
-        ? getDepartmentName(employee.departmentID3)
-        : "N/A",
-      positionName:
-        positions.find((p) => p.positionID === employee.positionID)
-          ?.positionName || "N/A",
-      educationalAttainmentName:
-        educationalAttainments.find((a) => a.educationalAttainmentID === employee.educationalAttainment)
-          ?.attainmentName || "N/A",
-      employmentStatusName:
-        employmentStatuses.find((s) => s.employmentStatusID === employee.employmentStatus)
-          ?.statusName || "N/A",
-      gender: employee.gender || "N/A",
-    };
-  });
-};
-
-  const handlePrint = (category?: string, categoryValue?: string) => {
-    const enhancedData = getEnhancedFacultyData();
-    let dataToPrint = enhancedData;
-    let title = "Faculty Members";
-
-    if (category && categoryValue) {
-      dataToPrint = enhancedData.filter(
-        (employee) =>
-          employee[category as keyof typeof employee]?.toString() ===
-          categoryValue
-      );
-      title = `Faculty Members - ${categoryValue}`;
-    }
-
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      message.error("Popup blocked! Please allow popups for printing.");
-      return;
-    }
-
-    const tableHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .print-header { text-align: center; margin-bottom: 20px; }
-          .print-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
-          .print-date { font-size: 14px; color: #666; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-          tr:nth-child(even) { background-color: #f9f9f9; }
-          @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-header">
-          <div class="print-title">${title}</div>
-          <div class="print-date">Generated on: ${moment().format(
-            "MMMM D, YYYY h:mm A"
-          )}</div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Employee ID</th>
-              <th>First Name</th>
-              <th>Last Name</th>
-              <th>Gender</th>
-              <th>Email</th>
-              <th>Department</th>
-              <th>Position</th>
-              <th>Status</th>
-              <th>Hire Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dataToPrint
-              .map(
-                (employee) => `
-              <tr>
-                <td>${employee.formattedId}</td>
-                <td>${employee.firstName || ""}</td>
-                <td>${employee.lastName || ""}</td>
-                <td>${employee.gender || ""}</td>
-                <td>${employee.email || ""}</td>
-                <td>${employee.departmentName}</td>
-                <td>${employee.positionName}</td>
-                <td>${employee.employmentStatusName}</td>
-                <td>${
-                  employee.hireDate
-                    ? moment(employee.hireDate).format("YYYY-MM-DD")
-                    : ""
-                }</td>
-              </tr>
-            `
-              )
-              .join("")}
-          </tbody>
-        </table>
-        <div class="no-print" style="margin-top: 20px; text-align: center;">
-          <button onclick="window.print()">Print</button>
-          <button onclick="window.close()">Close</button>
-        </div>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(tableHtml);
-    printWindow.document.close();
-  };
-
-  // Function to handle mixed department printing
-  const handleMixedDepartmentPrint = () => {
-    if (selectedDepartments.length === 0) {
-      message.warning("Please select at least one department");
-      return;
-    }
-
-    const enhancedData = getEnhancedFacultyData();
-    
-    // Filter employees who have ALL selected departments assigned
-    const dataToPrint = enhancedData.filter((employee) => {
-      const employeeDepartments = [
-        employee.departmentName,
-        employee.departmentName2,
-        employee.departmentName3,
-      ].filter(dept => dept && dept !== "N/A");
-
-      // Check if employee has ALL selected departments
-      return selectedDepartments.every(selectedDept => 
-        employeeDepartments.includes(selectedDept)
-      );
+      return {
+        ...employee,
+        formattedId: isValidHireDate
+          ? formatEmployeeId(employee.employeeID, employee.hireDate)
+          : "Invalid-Date",
+        departmentName: shouldHaveDepartment(employee.positionID)
+          ? getDepartmentName(employee.departmentID)
+          : "N/A",
+        departmentName2: shouldHaveDepartment(employee.positionID)
+          ? getDepartmentName(employee.departmentID2)
+          : "N/A",
+        departmentName3: shouldHaveDepartment(employee.positionID)
+          ? getDepartmentName(employee.departmentID3)
+          : "N/A",
+        positionName:
+          positions.find((p) => p.positionID === employee.positionID)
+            ?.positionName || "N/A",
+        educationalAttainmentName:
+          educationalAttainments.find((a) => a.educationalAttainmentID === employee.educationalAttainment)
+            ?.attainmentName || "N/A",
+        employmentStatusName:
+          employmentStatuses.find((s) => s.employmentStatusID === employee.employmentStatus)
+            ?.statusName || "N/A",
+        gender: employee.gender || "N/A",
+      };
     });
 
-    const departmentTitles = selectedDepartments.join(" + ");
-    const title = `Faculty Members - ${departmentTitles}`;
-
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      message.error("Popup blocked! Please allow popups for printing.");
-      return;
-    }
-
-    const tableHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .print-header { text-align: center; margin-bottom: 20px; }
-          .print-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
-          .print-date { font-size: 14px; color: #666; margin-bottom: 20px; }
-          .print-departments { font-size: 16px; margin-bottom: 10px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-          tr:nth-child(even) { background-color: #f9f9f9; }
-          @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-header">
-          <div class="print-title">Faculty Members</div>
-          <div class="print-departments">Departments: ${departmentTitles}</div>
-          <div class="print-date">Generated on: ${moment().format(
-            "MMMM D, YYYY h:mm A"
-          )}</div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Employee ID</th>
-              <th>First Name</th>
-              <th>Last Name</th>
-              <th>Gender</th>
-              <th>Email</th>
-              <th>Primary Department</th>
-              <th>Secondary Department</th>
-              <th>Tertiary Department</th>
-              <th>Position</th>
-              <th>Status</th>
-              <th>Hire Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dataToPrint
-              .map(
-                (employee) => `
-              <tr>
-                <td>${employee.formattedId}</td>
-                <td>${employee.firstName || ""}</td>
-                <td>${employee.lastName || ""}</td>
-                <td>${employee.gender || ""}</td>
-                <td>${employee.email || ""}</td>
-                <td>${employee.departmentName}</td>
-                <td>${employee.departmentName2}</td>
-                <td>${employee.departmentName3}</td>
-                <td>${employee.positionName}</td>
-                <td>${employee.employmentStatusName}</td>
-                <td>${
-                  employee.hireDate
-                    ? moment(employee.hireDate).format("YYYY-MM-DD")
-                    : ""
-                }</td>
-              </tr>
-            `
-              )
-              .join("")}
-          </tbody>
-        </table>
-        <div class="no-print" style="margin-top: 20px; text-align: center;">
-          <button onclick="window.print()">Print</button>
-          <button onclick="window.close()">Close</button>
-        </div>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(tableHtml);
-    printWindow.document.close();
-    setPrintModalVisible(false);
-    setSelectedDepartments([]);
-    message.success(`Printed data for departments: ${departmentTitles}`);
-  };
-
-  // Function to handle mixed department export
-  const handleMixedDepartmentExport = () => {
-    if (selectedExportDepartments.length === 0) {
-      message.warning("Please select at least one department");
-      return;
-    }
-
-    const enhancedData = getEnhancedFacultyData();
+    const hasActiveFilters = employeeIdFilter || nameFilter || genderFilter || 
+                            departmentFilter || positionFilter || statusFilter || dateRange;
     
-    // Filter employees who have ALL selected departments assigned
-    const dataToExport = enhancedData.filter((employee) => {
-      const employeeDepartments = [
-        employee.departmentName,
-        employee.departmentName2,
-        employee.departmentName3,
-      ].filter(dept => dept && dept !== "N/A");
+    const filename = hasActiveFilters 
+      ? "Faculty_Members_Filtered" 
+      : "Faculty_Members_All";
 
-      // Check if employee has ALL selected departments
-      return selectedExportDepartments.every(selectedDept => 
-        employeeDepartments.includes(selectedDept)
-      );
-    });
-
-    const departmentTitles = selectedExportDepartments.join("_");
-    const filename = `Faculty_Members_${departmentTitles}`;
-
-    exportToExcel(dataToExport, filename, `Mixed_Departments_${departmentTitles}`);
-    setExportModalVisible(false);
-    setSelectedExportDepartments([]);
-    message.success(`Exported data for departments: ${selectedExportDepartments.join(" + ")}`);
+    exportToExcel(enhancedData, filename);
+    message.success(`Data exported successfully! (${enhancedData.length} records)`);
   };
-
-  const handleExportToExcel = (category?: string, categoryValue?: string) => {
-    const enhancedData = getEnhancedFacultyData();
-    let dataToExport = enhancedData;
-    let filename = "Faculty_Members";
-
-    if (category && categoryValue) {
-      dataToExport = enhancedData.filter(
-        (employee) =>
-          employee[category as keyof typeof employee]?.toString() ===
-          categoryValue
-      );
-      filename = `Faculty_Members_${categoryValue.replace(/\s+/g, "_")}`;
-    }
-
-    exportToExcel(dataToExport, filename, categoryValue);
-    message.success(`Data exported successfully!`);
-  };
-
-  const getUniqueCategories = () => {
-    const enhancedData = getEnhancedFacultyData();
-
-    const positions = [
-      ...new Set(enhancedData.map((e) => e.positionName)),
-    ].filter(Boolean);
-    const departments = [
-      ...new Set(enhancedData.map((e) => e.departmentName)),
-    ].filter(Boolean);
-    const employmentStatuses = [
-      ...new Set(enhancedData.map((e) => e.employmentStatusName)),
-    ].filter(Boolean);
-    const genders = [...new Set(enhancedData.map((e) => e.gender))].filter(
-      Boolean
-    );
-
-    return { positions, departments, employmentStatuses, genders };
-  };
-
-  const {
-    positions: uniquePositions,
-    departments: uniqueDepartments,
-    employmentStatuses: uniqueStatuses,
-    genders: uniqueGenders,
-  } = getUniqueCategories();
-
-  const exportMenu = (
-    <Menu>
-      <Menu.SubMenu key="position" title="Export by Position">
-        {uniquePositions.map((position) => (
-          <Menu.Item
-            key={`pos-${position}`}
-            onClick={() => handleExportToExcel("positionName", position)}
-          >
-            {position}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-
-      <Menu.SubMenu key="department" title="Export by Department">
-        {uniqueDepartments.map((department) => (
-          <Menu.Item
-            key={`dept-${department}`}
-            onClick={() => handleExportToExcel("departmentName", department)}
-          >
-            {department}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-
-      <Menu.SubMenu key="status" title="Export by Employment Status">
-        {uniqueStatuses.map((status) => (
-          <Menu.Item
-            key={`status-${status}`}
-            onClick={() => handleExportToExcel("employmentStatusName", status)}
-          >
-            {status}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-
-      <Menu.SubMenu key="gender" title="Export by Gender">
-        {uniqueGenders.map((gender) => (
-          <Menu.Item
-            key={`gender-${gender}`}
-            onClick={() => handleExportToExcel("gender", gender)}
-          >
-            {gender}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-      
-      <Menu.Divider />
-      
-      <Menu.Item 
-        key="mixed-departments-export" 
-        onClick={() => setExportModalVisible(true)}
-        icon={<FilterOutlined />}
-      >
-        Export by Mixed Departments
-      </Menu.Item>
-
-      <Menu.Divider />
-
-      <Menu.Item key="all" onClick={() => handleExportToExcel()}>
-        Export All Data
-      </Menu.Item>
-    </Menu>
-  );
-
-  const printMenu = (
-    <Menu>
-      <Menu.SubMenu key="position" title="Print by Position">
-        {uniquePositions.map((position) => (
-          <Menu.Item
-            key={`print-pos-${position}`}
-            onClick={() => handlePrint("positionName", position)}
-          >
-            {position}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-      <Menu.SubMenu key="department" title="Print by Department">
-        {uniqueDepartments.map((department) => (
-          <Menu.Item
-            key={`print-dept-${department}`}
-            onClick={() => handlePrint("departmentName", department)}
-          >
-            {department}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-      <Menu.SubMenu key="status" title="Print by Employment Status">
-        {uniqueStatuses.map((status) => (
-          <Menu.Item
-            key={`print-status-${status}`}
-            onClick={() => handlePrint("employmentStatusName", status)}
-          >
-            {status}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-      <Menu.SubMenu key="gender" title="Print by Gender">
-        {uniqueGenders.map((gender) => (
-          <Menu.Item
-            key={`print-gender-${gender}`}
-            onClick={() => handlePrint("gender", gender)}
-          >
-            {gender}
-          </Menu.Item>
-        ))}
-      </Menu.SubMenu>
-      
-      <Menu.Divider />
-      
-      <Menu.Item 
-        key="mixed-departments" 
-        onClick={() => setPrintModalVisible(true)}
-        icon={<FilterOutlined />}
-      >
-        Print by Mixed Departments
-      </Menu.Item>
-      
-      <Menu.Divider />
-      
-      <Menu.Item key="all" onClick={() => handlePrint()}>
-        Print All Data
-      </Menu.Item>
-    </Menu>
-  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -697,7 +272,6 @@ const FacultyPage: React.FC = () => {
         ]);
 
         let employees = allEmployees;
-        let coordinatorDeptId: number | null = null;
 
         // Filter based on user role
         if (isAdmin || isHR) {
@@ -710,8 +284,7 @@ const FacultyPage: React.FC = () => {
             const coordinatorEmployee = allEmployees.find(
               (e) => e.employeeID === user.employeeId
             );
-            coordinatorDeptId = coordinatorEmployee?.departmentID ?? null;
-            setCoordinatorDepartmentId(coordinatorDeptId);
+            const coordinatorDeptId = coordinatorEmployee?.departmentID ?? null;
 
             if (coordinatorDeptId) {
               // Filter employees to show those in coordinator's primary, secondary, OR tertiary department
@@ -755,19 +328,19 @@ const FacultyPage: React.FC = () => {
   }, [isAdmin, isCoordinator, isHR, user?.employeeId]);
 
   // Watch for position changes to handle department logic
-    const watchedPositionID = Form.useWatch('positionID', form);
+  const watchedPositionID = Form.useWatch('positionID', form);
   
-    useEffect(() => {
-      // When the watched position changes, clear department if not applicable and re-validate
-      if (watchedPositionID !== undefined) {
-        if (!shouldHaveDepartment(watchedPositionID)) {
-          // Clear department if position shouldn't have one
-          form.setFieldsValue({ departmentID: null });
-        }
-        // Force re-validation of department field (ignore validation errors here)
-        form.validateFields(['departmentID']).catch(() => {});
+  useEffect(() => {
+    // When the watched position changes, clear department if not applicable and re-validate
+    if (watchedPositionID !== undefined) {
+      if (!shouldHaveDepartment(watchedPositionID)) {
+        // Clear department if position shouldn't have one
+        form.setFieldsValue({ departmentID: null });
       }
-    }, [watchedPositionID, form, positions]);
+      // Force re-validation of department field (ignore validation errors here)
+      form.validateFields(['departmentID']).catch(() => {});
+    }
+  }, [watchedPositionID, form, positions]);
 
   const handleCreate = () => {
     if (!isAdmin && !isHR) {
@@ -873,69 +446,69 @@ const FacultyPage: React.FC = () => {
   };
 
   const handleSubmit = async (values: any) => {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const positionId = Number(values.positionID);
-    const hasDepartment = shouldHaveDepartment(positionId);
+      const positionId = Number(values.positionID);
+      const hasDepartment = shouldHaveDepartment(positionId);
 
-    const formattedValues = {
-      ...values,
-      dateOfBirth: values.dateOfBirth
-        ? moment(values.dateOfBirth).format("YYYY-MM-DD")
-        : undefined,
-      hireDate: values.hireDate
-        ? dayjs(values.hireDate).format("YYYY-MM-DD")
-        : undefined,
-      // Department fields - only primary is required when applicable
-      departmentID: hasDepartment ? Number(values.departmentID) : null,
-      departmentID2: hasDepartment && values.departmentID2 ? Number(values.departmentID2) : null,
-      departmentID3: hasDepartment && values.departmentID3 ? Number(values.departmentID3) : null,
-      positionID: positionId,
-      educationalAttainment: values.educationalAttainment ? Number(values.educationalAttainment) : null,
-      employmentStatus: values.employmentStatus ? Number(values.employmentStatus) : null,
-      yearGraduated: values.yearGraduated
-        ? moment(values.yearGraduated).format("YYYY-MM-DD")
-        : null,
-      durationStart: values.durationStart
-        ? moment(values.durationStart).format("YYYY-MM-DD")
-        : null,
-      durationEnd: values.durationEnd
-        ? moment(values.durationEnd).format("YYYY-MM-DD")
-        : null,
-    };
+      const formattedValues = {
+        ...values,
+        dateOfBirth: values.dateOfBirth
+          ? moment(values.dateOfBirth).format("YYYY-MM-DD")
+          : undefined,
+        hireDate: values.hireDate
+          ? dayjs(values.hireDate).format("YYYY-MM-DD")
+          : undefined,
+        // Department fields - only primary is required when applicable
+        departmentID: hasDepartment ? Number(values.departmentID) : null,
+        departmentID2: hasDepartment && values.departmentID2 ? Number(values.departmentID2) : null,
+        departmentID3: hasDepartment && values.departmentID3 ? Number(values.departmentID3) : null,
+        positionID: positionId,
+        educationalAttainment: values.educationalAttainment ? Number(values.educationalAttainment) : null,
+        employmentStatus: values.employmentStatus ? Number(values.employmentStatus) : null,
+        yearGraduated: values.yearGraduated
+          ? moment(values.yearGraduated).format("YYYY-MM-DD")
+          : null,
+        durationStart: values.durationStart
+          ? moment(values.durationStart).format("YYYY-MM-DD")
+          : null,
+        durationEnd: values.durationEnd
+          ? moment(values.durationEnd).format("YYYY-MM-DD")
+          : null,
+      };
 
-    if (editingId) {
-      const updatedEmployee = await EmployeeService.update(
-        editingId,
-        formattedValues
-      );
-      setFacultyData(
-        facultyData.map((item) =>
-          item.employeeID === editingId ? updatedEmployee : item
-        )
-      );
-      message.success("Faculty updated successfully");
-    } else {
-      const { employeeID, ...employeeDataWithoutId } = formattedValues;
-      const newEmployee = await EmployeeService.create(employeeDataWithoutId);
-      setFacultyData([...facultyData, newEmployee]);
-      message.success("Faculty added successfully");
+      if (editingId) {
+        const updatedEmployee = await EmployeeService.update(
+          editingId,
+          formattedValues
+        );
+        setFacultyData(
+          facultyData.map((item) =>
+            item.employeeID === editingId ? updatedEmployee : item
+          )
+        );
+        message.success("Faculty updated successfully");
+      } else {
+        const { employeeID, ...employeeDataWithoutId } = formattedValues;
+        const newEmployee = await EmployeeService.create(employeeDataWithoutId);
+        setFacultyData([...facultyData, newEmployee]);
+        message.success("Faculty added successfully");
+      }
+
+      setIsModalVisible(false);
+      setSubmitPopconfirmVisible(false);
+      form.resetFields();
+      setSelectedEmployee(null);
+      setFormValues(null);
+    } catch (err) {
+      console.error("Error in handleSubmit:", err);
+      message.error("Operation failed. Please check the form and try again.");
+      setSubmitPopconfirmVisible(false);
+    } finally {
+      setLoading(false);
     }
-
-    setIsModalVisible(false);
-    setSubmitPopconfirmVisible(false);
-    form.resetFields();
-    setSelectedEmployee(null);
-    setFormValues(null);
-  } catch (err) {
-    console.error("Error in handleSubmit:", err);
-    message.error("Operation failed. Please check the form and try again.");
-    setSubmitPopconfirmVisible(false);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleConfirmUpdate = () => {
     if (formValues) {
@@ -976,36 +549,22 @@ const FacultyPage: React.FC = () => {
   };
 
   const handleSubmitUserAccount = async () => {
-  try {
-    const values = await userForm.validateFields();
-    setLoading(true);
+    try {
+      const values = await userForm.validateFields();
+      setLoading(true);
 
-    // Prepare user data with all required fields including email
-    const userData: tblUsersTypes = {
-      firstName: selectedEmployee?.firstName || '',
-      lastName: selectedEmployee?.lastName || '',
-      username: values.username,
-      newPassword: values.newPassword,
-      roleId: values.roleId,
-      employeeId: selectedEmployee?.employeeID || null,
-      email: selectedEmployee?.email || '' // Make sure this is included
-    };
-
-    console.log('Creating user with data:', userData); // For debugging
-
-    await UserService.createUserForEmployee(userData);
-    
-    message.success("User account created successfully and credentials sent via email");
-    setIsUserModalVisible(false);
-    userForm.resetFields();
-    setSelectedEmployee(null);
-  } catch (err: any) {
-    console.error('Error creating user account:', err);
-    message.error(err.message || "Failed to create user account");
-  } finally {
-    setLoading(false);
-  }
-};
+      await UserService.createUserForEmployee(values);
+      message.success("User account created successfully");
+      setIsUserModalVisible(false);
+      userForm.resetFields();
+      setSelectedEmployee(null);
+    } catch (err: any) {
+      message.error(err.message || "Failed to create user account");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleViewDetails = (record: Employee) => {
     setSelectedEmployeeDetails(record);
@@ -1014,11 +573,17 @@ const FacultyPage: React.FC = () => {
 
   // Apply filters to data
   const filteredData = facultyData.filter((record) => {
-    // Name search filter (search in both first and last name)
+    // Employee ID filter
+    const formattedId = formatEmployeeId(record.employeeID, record.hireDate);
+    const employeeIdMatch = 
+      employeeIdFilter === "" ||
+      formattedId.toLowerCase().includes(employeeIdFilter.toLowerCase());
+
+    // Name filter (search in both first and last name)
     const nameMatch = 
-      searchText === "" ||
-      record.firstName?.toLowerCase().includes(searchText.toLowerCase()) ||
-      record.lastName?.toLowerCase().includes(searchText.toLowerCase());
+      nameFilter === "" ||
+      record.firstName?.toLowerCase().includes(nameFilter.toLowerCase()) ||
+      record.lastName?.toLowerCase().includes(nameFilter.toLowerCase());
 
     // Gender filter
     const genderMatch = 
@@ -1049,16 +614,17 @@ const FacultyPage: React.FC = () => {
       ? true
       : dayjs(record.hireDate).isBetween(dateRange[0], dateRange[1], 'day', '[]');
 
-    return nameMatch && genderMatch && departmentMatch && positionMatch && statusMatch && dateMatch;
+    return employeeIdMatch && nameMatch && genderMatch && departmentMatch && positionMatch && statusMatch && dateMatch;
   });
 
   // Clear all filters
   const clearAllFilters = () => {
+    setEmployeeIdFilter("");
+    setNameFilter("");
     setGenderFilter("");
     setDepartmentFilter("");
     setPositionFilter("");
     setStatusFilter("");
-    setSearchText("");
     setDateRange(null);
   };
 
@@ -1073,6 +639,37 @@ const FacultyPage: React.FC = () => {
           {formatEmployeeId(id, record.hireDate)}
         </span>
       ),
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="Search Employee ID"
+            value={employeeIdFilter}
+            onChange={(e) => setEmployeeIdFilter(e.target.value)}
+            onPressEnter={() => confirm()}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setEmployeeIdFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
+          </Space>
+        </div>
+      ),
+      filtered: !!employeeIdFilter,
     },
     {
       title: "Name",
@@ -1084,12 +681,74 @@ const FacultyPage: React.FC = () => {
           <div className="name-line">{record.lastName}</div>
         </div>
       ),
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="Search Name"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            onPressEnter={() => confirm()}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setNameFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
+          </Space>
+        </div>
+      ),
+      filtered: !!nameFilter,
     },
     {
       title: "First and Second Name",
       dataIndex: ["firstName"],
       key: "firstName",
       responsive: ["md"],
+      filterDropdown: ({ confirm }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="Search Name"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            onPressEnter={() => confirm()}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                setNameFilter("");
+                confirm();
+              }}
+            >
+              Reset
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
+          </Space>
+        </div>
+      ),
+      filtered: !!nameFilter,
     },
     {
       title: "Last Name",
@@ -1132,9 +791,17 @@ const FacultyPage: React.FC = () => {
             >
               Reset
             </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
           </Space>
         </div>
       ),
+      filtered: !!genderFilter,
     },
     {
       title: "Department",
@@ -1187,9 +854,9 @@ const FacultyPage: React.FC = () => {
             placeholder="Select department"
             value={departmentFilter}
             onChange={(value) => setDepartmentFilter(value)}
-            style={{ width: 150, marginBottom: 8, display: 'block' }}
+            style={{ width: 150, marginBottom: 8, display: 'block' }} 
             allowClear
-            disabled={isCoordinator} // Disable department filter for coordinators
+            disabled={isCoordinator} //
           >
             {departments.map(dept => (
               <Option key={dept.departmentID} value={dept.departmentName}>
@@ -1209,9 +876,17 @@ const FacultyPage: React.FC = () => {
             >
               Reset
             </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
           </Space>
         </div>
       ),
+      filtered: !!departmentFilter,
     },
     {
       title: "Position",
@@ -1260,9 +935,17 @@ const FacultyPage: React.FC = () => {
             >
               Reset
             </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
           </Space>
         </div>
       ),
+      filtered: !!positionFilter,
     },
     {
       title: "Email",
@@ -1320,9 +1003,17 @@ const FacultyPage: React.FC = () => {
             >
               Reset
             </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              OK
+            </Button>
           </Space>
         </div>
       ),
+      filtered: !!statusFilter,
     },
     {
       title: "Hire Date",
@@ -1426,18 +1117,9 @@ const FacultyPage: React.FC = () => {
 
   const cardExtra = (
     <div className="search-add-container">
-      <Input.Search
-        placeholder="Search by name"
-        allowClear
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        className="search-input"
-        enterButton
-        size={screens.xs ? "small" : "middle"}
-      />
       <Space>
         {/* Clear Filters Button */}
-        {(genderFilter || departmentFilter || positionFilter || statusFilter || searchText || dateRange) && (
+        {(employeeIdFilter || nameFilter || genderFilter || departmentFilter || positionFilter || statusFilter || dateRange) && (
           <Button
             icon={<FilterOutlined />}
             onClick={clearAllFilters}
@@ -1448,34 +1130,15 @@ const FacultyPage: React.FC = () => {
           </Button>
         )}
 
-        <Dropdown
-          overlay={printMenu}
-          placement="bottomRight"
-          trigger={["click"]}
+        <Button
+          icon={<FileExcelOutlined />}
+          type="primary"
+          className="export-button"
+          size={screens.xs ? "small" : "middle"}
+          onClick={handleExportToExcel}
         >
-          <Button
-            icon={<PrinterOutlined />}
-            className="export-button"
-            size={screens.xs ? "small" : "middle"}
-          >
-            {screens.sm ? "Print" : ""}
-          </Button>
-        </Dropdown>
-
-        <Dropdown
-          overlay={exportMenu}
-          placement="bottomRight"
-          trigger={["click"]}
-        >
-          <Button
-            icon={<FileExcelOutlined />}
-            type="primary"
-            className="export-button"
-            size={screens.xs ? "small" : "middle"}
-          >
-            {screens.sm ? "Export" : ""}
-          </Button>
-        </Dropdown>
+          {screens.sm ? "Export" : ""}
+        </Button>
 
         {(isAdmin || isHR) && (
           <Button
@@ -1493,8 +1156,8 @@ const FacultyPage: React.FC = () => {
   );
 
   return (
-    <div className="faculty-page-container" ref={tableRef}>
-      <Card title="Faculty Members" className="faculty-card" extra={cardExtra}>
+    <div className="faculty-page-container">
+      <Card title="Employee Members" className="faculty-card" extra={cardExtra}>
         <Table
           columns={columns}
           dataSource={filteredData}
@@ -2008,122 +1671,6 @@ const FacultyPage: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* Print by Mixed Departments Modal */}
-      <Modal
-        title="Print by Mixed Departments"
-        open={printModalVisible}
-        onCancel={() => {
-          setPrintModalVisible(false);
-          setSelectedDepartments([]);
-        }}
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => {
-              setPrintModalVisible(false);
-              setSelectedDepartments([]);
-            }}
-          >
-            Cancel
-          </Button>,
-          <Button
-            key="print"
-            type="primary"
-            icon={<PrinterOutlined />}
-            onClick={handleMixedDepartmentPrint}
-          >
-            Print Selected Departments
-          </Button>,
-        ]}
-        width={600}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <p>Select multiple departments to print faculty members who belong to <strong>ALL</strong> of the selected departments:</p>
-        </div>
-        <div style={{ maxHeight: 400, overflow: 'auto' }}>
-          <Checkbox.Group
-            value={selectedDepartments}
-            onChange={setSelectedDepartments}
-            style={{ width: '100%' }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {departments.map((dept) => (
-                <Checkbox key={dept.departmentID} value={dept.departmentName || ''}>
-                  {dept.departmentName}
-                </Checkbox>
-              ))}
-            </div>
-          </Checkbox.Group>
-        </div>
-        {selectedDepartments.length > 0 && (
-          <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f0f8ff', borderRadius: 4 }}>
-            <strong>Selected Departments:</strong> {selectedDepartments.join(' + ')}
-            <br />
-            <span style={{ fontSize: 12, color: '#666' }}>
-              This will print only faculty members who have <strong>ALL</strong> of these departments assigned (in primary, secondary, or tertiary positions).
-            </span>
-          </div>
-        )}
-      </Modal>
-
-      {/* Export by Mixed Departments Modal */}
-      <Modal
-        title="Export by Mixed Departments"
-        open={exportModalVisible}
-        onCancel={() => {
-          setExportModalVisible(false);
-          setSelectedExportDepartments([]);
-        }}
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => {
-              setExportModalVisible(false);
-              setSelectedExportDepartments([]);
-            }}
-          >
-            Cancel
-          </Button>,
-          <Button
-            key="export"
-            type="primary"
-            icon={<FileExcelOutlined />}
-            onClick={handleMixedDepartmentExport}
-          >
-            Export Selected Departments
-          </Button>,
-        ]}
-        width={600}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <p>Select multiple departments to export faculty members who belong to <strong>ALL</strong> of the selected departments:</p>
-        </div>
-        <div style={{ maxHeight: 400, overflow: 'auto' }}>
-          <Checkbox.Group
-            value={selectedExportDepartments}
-            onChange={setSelectedExportDepartments}
-            style={{ width: '100%' }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {departments.map((dept) => (
-                <Checkbox key={dept.departmentID} value={dept.departmentName || ''}>
-                  {dept.departmentName}
-                </Checkbox>
-              ))}
-            </div>
-          </Checkbox.Group>
-        </div>
-        {selectedExportDepartments.length > 0 && (
-          <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f0f8ff', borderRadius: 4 }}>
-            <strong>Selected Departments:</strong> {selectedExportDepartments.join(' + ')}
-            <br />
-            <span style={{ fontSize: 12, color: '#666' }}>
-              This will export only faculty members who have <strong>ALL</strong> of these departments assigned (in primary, secondary, or tertiary positions).
-            </span>
-          </div>
-        )}
-      </Modal>
-
       {/* Employee Details Modal */}
       <Modal
         title={`${selectedEmployeeDetails?.firstName} ${selectedEmployeeDetails?.lastName} - Profile`}
@@ -2202,38 +1749,38 @@ const FacultyPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="detail-row">
-                    <span className="detail-label">Primary Department:</span>
-                    <span className="detail-value">
-                      {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
-                        ? departments.find(
-                            (d) => d.departmentID === selectedEmployeeDetails.departmentID
-                          )?.departmentName || selectedEmployeeDetails.departmentID
-                        : "N/A"
-                      }
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Secondary Department:</span>
-                    <span className="detail-value">
-                      {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
-                        ? departments.find(
-                            (d) => d.departmentID === selectedEmployeeDetails.departmentID2
-                          )?.departmentName || "N/A"
-                        : "N/A"
-                      }
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Tertiary Department:</span>
-                    <span className="detail-value">
-                      {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
-                        ? departments.find(
-                            (d) => d.departmentID === selectedEmployeeDetails.departmentID3
-                          )?.departmentName || "N/A"
-                        : "N/A"
-                      }
-                    </span>
-                  </div>
+                      <span className="detail-label">Primary Department:</span>
+                      <span className="detail-value">
+                        {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
+                          ? departments.find(
+                              (d) => d.departmentID === selectedEmployeeDetails.departmentID
+                            )?.departmentName || selectedEmployeeDetails.departmentID
+                          : "N/A"
+                        }
+                      </span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Secondary Department:</span>
+                      <span className="detail-value">
+                        {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
+                          ? departments.find(
+                              (d) => d.departmentID === selectedEmployeeDetails.departmentID2
+                            )?.departmentName || "N/A"
+                          : "N/A"
+                        }
+                      </span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Tertiary Department:</span>
+                      <span className="detail-value">
+                        {shouldHaveDepartment(selectedEmployeeDetails.positionID) 
+                          ? departments.find(
+                              (d) => d.departmentID === selectedEmployeeDetails.departmentID3
+                            )?.departmentName || "N/A"
+                          : "N/A"
+                        }
+                      </span>
+                    </div>
                     <div className="detail-row">
                       <span className="detail-label">Position:</span>
                       <span className="detail-value">
@@ -2453,7 +2000,6 @@ const FacultyPage: React.FC = () => {
             </Tabs>
           </>
         )}
-        
       </Modal>
     </div>
   );
