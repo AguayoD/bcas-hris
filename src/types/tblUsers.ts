@@ -2,6 +2,7 @@ export type tblUsersTypes = {
   userId?: number | null;
   firstName: string | null;
   lastName: string | null;
+  middleName?: string | null;
   username: string | null;
   newPassword: string | null;
   roleId: number | null;

@@ -1,6 +1,7 @@
 export interface Employee {
   employeeID?: number;
   firstName?: string;
+  middleName?: string;
   lastName?: string;
   gender?: string;
   dateOfBirth?: Date | string;

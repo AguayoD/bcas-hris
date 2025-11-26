@@ -32,6 +32,7 @@ update: async (id: number, employee: Partial<Employee>): Promise<Employee> => {
     const payload = {
       EmployeeID: id,
       FirstName: employee.firstName,
+      MiddleName: employee.middleName,
       LastName: employee.lastName,
       Gender: employee.gender,
       DateOfBirth: employee.dateOfBirth,
