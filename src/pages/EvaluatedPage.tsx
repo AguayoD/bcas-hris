@@ -144,16 +144,21 @@ const EvaluatedPage: React.FC = () => {
     if (!dept || dept === "all") return false;
     const deptLower = dept.toLowerCase();
 
-    // Quarter-based departments: Pre Elementary, Elementary, High School
+    // Quarter-based departments: Pre Elementary, Elementary, Junior High School
     const isPreElementary =
       deptLower.includes("pre elementary") ||
       deptLower.includes("pre-elementary");
-    const isElementary = deptLower.includes("elementary");
-    const isHighSchool =
-      (deptLower.includes("high school") || deptLower.includes("highschool")) &&
+    const isElementary = 
+      deptLower.includes("elementary") && 
+      !deptLower.includes("pre") &&
+      !deptLower.includes("senior");
+    const isJuniorHighSchool =
+      (deptLower.includes("junior high") || 
+       deptLower.includes("junior-high") ||
+       deptLower.includes("junior high school")) &&
       !deptLower.includes("senior");
 
-    return isPreElementary || isElementary || isHighSchool;
+    return isPreElementary || isElementary || isJuniorHighSchool;
   };
 
   const isEmployeeQuarterBased = (departments?: string[]): boolean => {
@@ -164,13 +169,17 @@ const EvaluatedPage: React.FC = () => {
       const isPreElementary =
         deptLower.includes("pre elementary") ||
         deptLower.includes("pre-elementary");
-      const isElementary = deptLower.includes("elementary");
-      const isHighSchool =
-        (deptLower.includes("high school") ||
-          deptLower.includes("highschool")) &&
+      const isElementary = 
+        deptLower.includes("elementary") && 
+        !deptLower.includes("pre") &&
+        !deptLower.includes("senior");
+      const isJuniorHighSchool =
+        (deptLower.includes("junior high") || 
+         deptLower.includes("junior-high") ||
+         deptLower.includes("junior high school")) &&
         !deptLower.includes("senior");
 
-      return isPreElementary || isElementary || isHighSchool;
+      return isPreElementary || isElementary || isJuniorHighSchool;
     });
   };
 
@@ -180,10 +189,27 @@ const EvaluatedPage: React.FC = () => {
     return departments.some((dept) => {
       const deptLower = dept.toLowerCase();
       const isCollege = deptLower.includes("college");
-      const isSeniorHigh =
-        deptLower.includes("senior high") || deptLower.includes("senior-high");
+      const isSeniorHighSchool =
+        deptLower.includes("senior high") || 
+        deptLower.includes("senior-high");
 
-      return isCollege || isSeniorHigh;
+      return isCollege || isSeniorHighSchool;
+    });
+  };
+
+  // Enhanced department matching function
+  const doesDepartmentMatch = (employeeDepts: string[], coordinatorDept: string): boolean => {
+    if (!employeeDepts || employeeDepts.length === 0) return false;
+    
+    const coordinatorDeptLower = coordinatorDept.toLowerCase();
+    
+    return employeeDepts.some(employeeDept => {
+      const employeeDeptLower = employeeDept.toLowerCase();
+      
+      // Exact match or contains check
+      return employeeDeptLower === coordinatorDeptLower || 
+             employeeDeptLower.includes(coordinatorDeptLower) ||
+             coordinatorDeptLower.includes(employeeDeptLower);
     });
   };
 
@@ -241,7 +267,7 @@ const EvaluatedPage: React.FC = () => {
           }
 
           // Determine coordinator's primary department
-          let primaryDepartment = coordinatorDeptNames[0] || "High School";
+          let primaryDepartment = coordinatorDeptNames[0] || "Junior High School";
 
           // Set the coordinator department and appropriate semester system
           setCoordinatorDepartment(primaryDepartment);
@@ -272,9 +298,9 @@ const EvaluatedPage: React.FC = () => {
             setSelectedHistoryDepartment("Senior High School");
             setSelectedSemester("S1");
           } else {
-            setCoordinatorDepartment("High School");
-            setSelectedDepartment("High School");
-            setSelectedHistoryDepartment("High School");
+            setCoordinatorDepartment("Junior High School");
+            setSelectedDepartment("Junior High School");
+            setSelectedHistoryDepartment("Junior High School");
             setSelectedSemester("Q1");
           }
         } finally {
@@ -472,9 +498,24 @@ const EvaluatedPage: React.FC = () => {
       return evals;
     }
 
-    return evals.filter((evaluation) =>
-      evaluation.employeeDepartments?.includes(coordinatorDepartment)
-    );
+    console.log("Filtering evaluations for coordinator department:", coordinatorDepartment);
+    
+    const filtered = evals.filter((evaluation) => {
+      const hasMatchingDepartment = doesDepartmentMatch(
+        evaluation.employeeDepartments || [],
+        coordinatorDepartment
+      );
+      
+      console.log(`Employee ${evaluation.employeeName} departments:`, 
+        evaluation.employeeDepartments, 
+        "matches:", hasMatchingDepartment
+      );
+      
+      return hasMatchingDepartment;
+    });
+
+    console.log(`Filtered ${filtered.length} out of ${evals.length} evaluations for coordinator`);
+    return filtered;
   };
 
   const fetchEvaluations = async () => {
@@ -603,7 +644,8 @@ const EvaluatedPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedYear && evaluations.length > 0) {
-      const totals = calculateEmployeeTotals(evaluations, selectedYear);
+      const filteredEvaluations = filterEvaluationsByCoordinator(evaluations);
+      const totals = calculateEmployeeTotals(filteredEvaluations, selectedYear);
       setEmployeeTotals(totals);
     }
   }, [selectedYear, evaluations]);
@@ -1127,23 +1169,19 @@ const EvaluatedPage: React.FC = () => {
 
   // FIXED: Tab visibility functions
   const shouldShowSemesterTab = () => {
-    // Allow semester tab for semester-based department coordinators
+    // Only show semester tab for semester-based departments
     if (isCoordinator && coordinatorDepartment) {
-      return !isQuarterBasedDepartment(coordinatorDepartment);
+      return isEmployeeSemesterBased([coordinatorDepartment]);
     }
-    // Never show semester tab for quarter-based coordinators
-    if (isCoordinator) return false;
     // Show for Admin and HR
     return isAdmin || isHR;
   };
 
   const shouldShowQuarterlyTab = () => {
-    // Show quarterly tab for quarter-based department coordinators
+    // Only show quarterly tab for quarter-based departments
     if (isCoordinator && coordinatorDepartment) {
-      return isQuarterBasedDepartment(coordinatorDepartment);
+      return isEmployeeQuarterBased([coordinatorDepartment]);
     }
-    // Don't show quarterly tab for semester-based coordinators
-    if (isCoordinator) return false;
     // Show for Admin and HR
     return isAdmin || isHR;
   };
@@ -1168,6 +1206,8 @@ const EvaluatedPage: React.FC = () => {
     isCoordinator,
     coordinatorDepartment,
     selectedSemester,
+    isQuarterBased: isQuarterBasedDepartment(coordinatorDepartment || ""),
+    isSemesterBased: isEmployeeSemesterBased([coordinatorDepartment || ""]),
   });
 
   return (
@@ -1315,6 +1355,11 @@ const EvaluatedPage: React.FC = () => {
                   <strong>Total Evaluations:</strong>{" "}
                   {currentSemesterData.length}
                 </div>
+                {isCoordinator && (
+                  <div>
+                    <strong>Department:</strong> {coordinatorDepartment}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1329,6 +1374,7 @@ const EvaluatedPage: React.FC = () => {
               >
                 <p style={{ fontSize: "16px", color: "#999" }}>
                   No evaluations found for {getSemesterLabel(selectedSemester)}
+                  {isCoordinator && ` in ${coordinatorDepartment}`}
                 </p>
               </div>
             ) : (
@@ -1505,8 +1551,7 @@ const EvaluatedPage: React.FC = () => {
                     No quarter-based evaluations found for Year {selectedYear}
                   </p>
                   <p style={{ fontSize: "14px", color: "#666", marginTop: 8 }}>
-                    Quarter-based departments: Pre Elementary, Elementary, High
-                    School
+                    Quarter-based departments: Pre Elementary, Elementary, Junior High School
                   </p>
                 </div>
               ) : (

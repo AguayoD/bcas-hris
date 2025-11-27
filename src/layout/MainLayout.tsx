@@ -148,8 +148,13 @@ const MainLayout = () => {
             icon: <UserOutlined />,
             label: "User Management",
           },
-           {
-            key: "audit-log",
+          //  {
+          //   key: "audit-log",
+          //   icon: <UserOutlined />,
+          //   label: "Evaluation Logs",
+          // },
+                     {
+            key: "logs",
             icon: <UserOutlined />,
             label: "Audit Logs",
           },
@@ -267,4 +272,3 @@ const MainLayout = () => {
 };
 
 export default MainLayout;
-

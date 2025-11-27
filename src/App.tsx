@@ -19,6 +19,7 @@ import EvaluatedPage from "./pages/EvaluatedPage.tsx";
 import EducationalAttainmentPage from "./pages/EducationalAttainmentPage.tsx";
 import EmploymentStatusPage from "./pages/EmploymentStatusPage.tsx";
 import AuditLogPage from "./pages/AuditLogPage.tsx";
+import TransactionEventsPage from "./pages/TransactionEvent.tsx";
 
 function App() {
   return (
@@ -124,6 +125,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <EvaluatedPage />
+              </ProtectedRoute>
+            } 
+          />    
+                    <Route 
+            path="/logs" 
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
+                <TransactionEventsPage />
               </ProtectedRoute>
             } 
           />    

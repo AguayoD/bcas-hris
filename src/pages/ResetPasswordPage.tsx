@@ -29,11 +29,17 @@ const ResetPasswordPage = () => {
       return;
     }
 
+    // Add password length validation
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
     try {
       const response = await UserService.resetPassword(token, newPassword);
       setMessage(response.message || "Password reset successful.");
       setError("");
-      setTimeout(() => navigate('/'), 3000);
+      setTimeout(() => navigate('/login'), 3000); // Redirect to login page
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || "Failed to reset password.";
       setError(errorMsg);
@@ -57,12 +63,16 @@ const ResetPasswordPage = () => {
         backgroundColor: '#fff',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         color: '#333'
-
       }}>
         <h2 style={{ textAlign: 'center' }}>Reset Password</h2>
 
         {message ? (
-          <p style={{ color: 'green', textAlign: 'center' }}>{message}</p>
+          <div>
+            <p style={{ color: 'green', textAlign: 'center' }}>{message}</p>
+            <p style={{ textAlign: 'center', fontSize: '14px', color: '#666' }}>
+              Redirecting to login page...
+            </p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '15px' }}>
@@ -72,7 +82,16 @@ const ResetPasswordPage = () => {
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
                 required
-                style={{ width: '100%', paddingTop: '10px', marginTop: '5px' }}
+                minLength={6}
+                style={{ 
+                  width: '100%', 
+                  padding: '10px', 
+                  marginTop: '5px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  boxSizing: 'border-box'
+                }}
+                placeholder="Enter new password (min. 6 characters)"
               />
             </div>
 
@@ -83,11 +102,20 @@ const ResetPasswordPage = () => {
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 required
-                style={{ width: '100%', paddingTop: '10px', marginTop: '5px' }}
+                minLength={6}
+                style={{ 
+                  width: '100%', 
+                  padding: '10px', 
+                  marginTop: '5px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  boxSizing: 'border-box'
+                }}
+                placeholder="Confirm new password"
               />
             </div>
 
-            {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
+            {error && <p style={{ color: 'red', textAlign: 'center', marginBottom: '15px' }}>{error}</p>}
 
             <button type="submit" style={{
               width: '100%',
@@ -96,7 +124,8 @@ const ResetPasswordPage = () => {
               color: '#fff',
               border: 'none',
               borderRadius: '4px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              fontSize: '16px'
             }}>
               Reset Password
             </button>

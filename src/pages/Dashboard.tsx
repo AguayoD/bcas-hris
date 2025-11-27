@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Card,
   Col,
@@ -12,6 +12,7 @@ import {
   Tag,
   Select,
   DatePicker,
+  Button,
 } from "antd";
 import {
   UserOutlined,
@@ -24,6 +25,7 @@ import {
   LineChartOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  MailOutlined,
 } from "@ant-design/icons";
 import {
   LineChart,
@@ -36,9 +38,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import { EmployeeService } from "../api/EmployeeService"; 
 import { ContractService } from "../api/ContractService";
@@ -58,8 +57,6 @@ import "./Dashboard.css";
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const COLORS = ['#0088FE', '#00C49F'];
-
 dayjs.extend(isBetween);
 
 const Dashboard: React.FC = () => {
@@ -74,6 +71,7 @@ const Dashboard: React.FC = () => {
   const [hiringView, setHiringView] = useState<'monthly' | 'yearly'>('monthly');
   const [employeeEvaluation, setEmployeeEvaluation] = useState<any>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [sendingEmails, setSendingEmails] = useState<boolean>(false);
   
   const { user } = useAuth();
   const isAdmin = user?.roleId === ROLES.Admin;
@@ -184,6 +182,34 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const sendBonusEligibilityEmails = async () => {
+    setSendingEmails(true);
+    try {
+      const eligibleEmployeesForEmail = evaluationEligibleEmployees.map(emp => ({
+        id: emp.id,
+        name: emp.name,
+        finalScore: emp.finalScore,
+        requiredScore: emp.requiredScore,
+        isAssistant: emp.isAssistant
+      }));
+
+      const response = await axios.post("/Email/send-bonus-eligibility", {
+        eligibleEmployees: eligibleEmployeesForEmail
+      });
+      
+      if (response.data.success) {
+        message.success(`Bonus eligibility emails sent to ${evaluationEligibleEmployees.length} employees`);
+      } else {
+        message.error("Failed to send some emails");
+      }
+    } catch (error) {
+      console.error("Error sending emails:", error);
+      message.error("Failed to send emails");
+    } finally {
+      setSendingEmails(false);
+    }
+  };
+
   const getPositionName = (positionId?: number | null) => {
     if (positionId == null) return "Unknown";
     return positions.find(p => p.positionID === positionId)?.positionName || "Unknown";
@@ -204,6 +230,20 @@ const Dashboard: React.FC = () => {
       case ROLES.HR: return "HR";
       default: return "Unknown";
     }
+  };
+
+  // Helper function to determine if employee is quarter-based
+  const isEmployeeQuarterBased = (departmentId?: number | null): boolean => {
+    if (!departmentId) return false;
+    
+    const departmentName = getDepartmentName(departmentId).toLowerCase();
+    
+    // Quarter-based departments: Pre Elementary, Elementary, High School
+    const isPreElementary = departmentName.includes("pre elementary") || departmentName.includes("pre-elementary");
+    const isElementary = departmentName.includes("elementary");
+    const isHighSchool = (departmentName.includes("high school") || departmentName.includes("highschool")) && !departmentName.includes("senior");
+
+    return isPreElementary || isElementary || isHighSchool;
   };
   
   // Count teachers and non-teaching staff based on roles
@@ -427,29 +467,79 @@ const Dashboard: React.FC = () => {
       .slice(-12); // Show last 12 months
   };
 
-  const getEvaluationData = () => {
-    const evaluated: string[] = [];
-    const pending: string[] = [];
+  // Memoize evaluation pie data and eligible employees to avoid recomputing during render
+  const { evaluationPieData, evaluationEligibleEmployees } = useMemo(() => {
+    const eligibleNames: string[] = [];
+    const notEligibleNames: string[] = [];
+    const eligibleEmployeesList: { 
+      id?: number; 
+      name: string; 
+      finalScore: number; 
+      requiredScore: number; 
+      isAssistant: boolean;
+      evaluationCount: number;
+    }[] = [];
+
+    // Create a map to store all evaluations per employee
+    const employeeEvaluationsMap = new Map<number, any[]>();
     
-    const evaluatedEmployeeIds = new Set(
-      evaluations.map(evaluation => evaluation.employeeID)
-    );
-    
+    // Group evaluations by employee
+    evaluations.forEach((evaluation) => {
+      if (!employeeEvaluationsMap.has(evaluation.employeeID)) {
+        employeeEvaluationsMap.set(evaluation.employeeID, []);
+      }
+      employeeEvaluationsMap.get(evaluation.employeeID)!.push(evaluation);
+    });
+
     employeeData.forEach((employee) => {
+      if (!employee.employeeID) return; // Skip employees without an ID
       const employeeName = `${employee.firstName} ${employee.lastName}`;
-      
-      if (evaluatedEmployeeIds.has(employee.employeeID)) {
-        evaluated.push(employeeName);
-      } else {
-        pending.push(employeeName);
+      const employeeEvals = employeeEvaluationsMap.get(employee.employeeID) || [];
+
+      if (employeeEvals.length === 0) {
+        return; // Skip employees with no evaluations
+      }
+
+      // Check if employee is quarter-based or semester-based
+      const isQuarterBased = isEmployeeQuarterBased(employee.departmentID);
+      const requiredEvaluations = isQuarterBased ? 4 : 2; // 4 quarters or 2 semesters
+
+      // Only consider employees with complete evaluations
+      if (employeeEvals.length >= requiredEvaluations) {
+        // Calculate total average score for the employee
+        const totalScore = employeeEvals.reduce((sum, evalItem) => sum + evalItem.finalScore, 0);
+        const averageScore = totalScore / employeeEvals.length;
+
+        const positionName = getPositionName(employee.positionID).toLowerCase();
+        const isAssistant = positionName.includes('assistant');
+        const requiredScore = 4.2;
+
+        if (averageScore >= requiredScore) {
+          eligibleNames.push(employeeName);
+          eligibleEmployeesList.push({
+            id: employee.employeeID,
+            name: employeeName,
+            finalScore: averageScore,
+            requiredScore,
+            isAssistant,
+            evaluationCount: employeeEvals.length,
+          });
+        } else {
+          notEligibleNames.push(employeeName);
+        }
       }
     });
 
-    return [
-      { name: 'Evaluated', value: evaluated.length, employees: evaluated },
-      { name: 'Pending', value: pending.length, employees: pending },
+    const pieData = [
+      { name: 'Eligible for Bonus', value: eligibleNames.length, employees: eligibleNames, fill: '#00C49F' },
+      { name: 'Not Eligible for Bonus', value: notEligibleNames.length, employees: notEligibleNames, fill: '#FFBB28' },
     ];
-  };
+
+    return {
+      evaluationPieData: pieData,
+      evaluationEligibleEmployees: eligibleEmployeesList,
+    };
+  }, [employeeData, evaluations, positions]);
 
   const employeeNotifications = [
     {
@@ -470,7 +560,10 @@ const Dashboard: React.FC = () => {
       type: "info",
       icon: <ClockCircleOutlined />,
     }]),
-    ...(employeeStats.isEvaluated && employeeStats.evaluationScore && employeeStats.evaluationScore >= 4.2 ? [{
+    ...(employeeStats.isEvaluated && employeeStats.evaluationScore && (() => {
+      const requiredRating = 4.2; // Unified requirement
+      return employeeStats.evaluationScore >= requiredRating;
+    })() ? [{
       title: "🎉 Performance Bonus Eligibility",
       description: "Congratulations! Your evaluation score qualifies you for a performance bonus. To receive this bonus, you must meet the following requirements: no more than 5 late arrivals, no more than 3 absences in the school year, and no memorandums for policy violations.",
       type: "success",
@@ -635,7 +728,7 @@ const totalAdminAndHR = employeeData.filter(e =>
                   >
                     <Option value="hire">Hiring Trends</Option>
                     <Option value="contract">Contract End Dates</Option>
-                    <Option value="evaluation">Evaluation Status</Option>
+                    <Option value="evaluation">Performance Bonus Eligibility</Option>
                   </Select>
                 </div>
               </div>
@@ -758,84 +851,61 @@ const totalAdminAndHR = employeeData.filter(e =>
             )}
             
             {chartView === 'evaluation' && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={getEvaluationData()}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={(props: any) => {
-                        const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-                        const RADIAN = Math.PI / 180;
-                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                        return (
-                          <text
-                            x={x}
-                            y={y}
-                            fill="white"
-                            textAnchor={x > cx ? 'start' : 'end'}
-                            dominantBaseline="central"
-                          >
-                            {`${(percent * 100).toFixed(0)}%`}
-                          </text>
-                        );
-                      }}
+              <div style={{ padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <Title level={5} style={{ margin: 0 }}>Performance Bonus Eligibility</Title>
+                  <Text type="secondary">{evaluationEligibleEmployees.length} eligible • {evaluationPieData.reduce((a: any, b: any) => a + b.value, 0)} evaluated</Text>
+                </div>
+                
+                {/* Add Send Email Button for Admin/HR */}
+                {(isAdmin || isHR) && evaluationEligibleEmployees.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <Button 
+                      type="primary" 
+                      icon={<MailOutlined />}
+                      onClick={sendBonusEligibilityEmails}
+                      loading={sendingEmails}
                     >
-                      {getEvaluationData().map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      content={({ active, payload }: any) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div style={{ 
-                              background: 'white', 
-                              padding: '12px', 
-                              border: '1px solid #ccc',
-                              borderRadius: '4px',
-                              maxWidth: '300px',
-                              maxHeight: '400px',
-                              overflowY: 'auto'
-                            }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '8px', color: data.fill }}>
-                                {data.name}
-                              </p>
-                              <p style={{ marginBottom: '8px' }}>
-                                Total: {data.value} employees
-                              </p>
-                              <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
-                                <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                                {data.employees.slice(0, 10).map((emp: string, idx: number) => (
-                                  <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
-                                    • {emp}
-                                  </p>
-                                ))}
-                                {data.employees.length > 10 && (
-                                  <p style={{ margin: '2px 0', fontSize: '12px', fontStyle: 'italic' }}>
-                                    ... and {data.employees.length - 10} more
-                                  </p>
-                                )}
+                      Notify Eligible Employees via Email
+                    </Button>
+                  </div>
+                )}
+                
+                {evaluationEligibleEmployees.length === 0 ? (
+                  <Text type="secondary">No employees are currently eligible for a performance bonus.</Text>
+                ) : (
+                  <List
+                    size="small"
+                    dataSource={evaluationEligibleEmployees}
+                    renderItem={(item: any) => (
+                      <List.Item>
+                        <List.Item.Meta
+                          title={`${item.name}`}
+                          description={
+                            <div>
+                              <div>Total Average Score: <strong>{item.finalScore.toFixed(2)}</strong></div>
+                              <div>Requirement: {item.requiredScore}{item.isAssistant ? ' (Assistant)' : ''}</div>
+                              <div>Evaluations Completed: {item.evaluationCount}</div>
+                              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                                Status: <Tag color={item.finalScore >= item.requiredScore ? 'green' : 'red'}>
+                                  {item.finalScore >= item.requiredScore ? 'ELIGIBLE' : 'NOT ELIGIBLE'}
+                                </Tag>
                               </div>
                             </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                          }
+                        />
+                        <div>
+                          <Tag color={item.isAssistant ? 'purple' : 'green'}>
+                            {item.isAssistant ? 'Assistant' : 'Regular'}
+                          </Tag>
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+                )}
               </div>
             )}
+            
           </Card>
         </Col>
         <Col xs={24} md={8}>
@@ -1059,85 +1129,44 @@ const totalAdminAndHR = employeeData.filter(e =>
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
         <Col span={24}>
           <Card 
-            title={<span><LineChartOutlined /> Evaluation Status Overview</span>}
+            title={<span><LineChartOutlined /> Performance Bonus Eligibility Overview</span>} 
             className="dashboard-calendar-card"
           >
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={getEvaluationData()}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={(props: any) => {
-                      const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-                      const RADIAN = Math.PI / 180;
-                      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                      return (
-                        <text
-                          x={x}
-                          y={y}
-                          fill="white"
-                          textAnchor={x > cx ? 'start' : 'end'}
-                          dominantBaseline="central"
-                        >
-                          {`${(percent * 100).toFixed(0)}%`}
-                        </text>
-                      );
-                    }}
-                  >
-                    {getEvaluationData().map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    content={({ active, payload }: any) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div style={{ 
-                            background: 'white', 
-                            padding: '12px', 
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            maxWidth: '300px',
-                            maxHeight: '400px',
-                            overflowY: 'auto'
-                          }}>
-                            <p style={{ fontWeight: 'bold', marginBottom: '8px', color: data.fill }}>
-                              {data.name}
-                            </p>
-                            <p style={{ marginBottom: '8px' }}>
-                              Total: {data.value} employees
-                            </p>
-                            <div style={{ borderTop: '1px solid #eee', paddingTop: '8px' }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Employees:</p>
-                              {data.employees.slice(0, 10).map((emp: string, idx: number) => (
-                                <p key={idx} style={{ margin: '2px 0', fontSize: '12px' }}>
-                                  • {emp}
-                                </p>
-                              ))}
-                              {data.employees.length > 10 && (
-                                <p style={{ margin: '2px 0', fontSize: '12px', fontStyle: 'italic' }}>
-                                  ... and {data.employees.length - 10} more
-                                </p>
-                              )}
+            <div style={{ padding: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={5} style={{ margin: 0 }}>Performance Bonus Eligible</Title>
+                <Text type="secondary">{evaluationEligibleEmployees.length} eligible • {evaluationPieData.reduce((a: any, b: any) => a + b.value, 0)} evaluated</Text>
+              </div>
+              {evaluationEligibleEmployees.length === 0 ? (
+                <Text type="secondary">No employees are currently eligible for a performance bonus.</Text>
+              ) : (
+                <List
+                  size="small"
+                  dataSource={evaluationEligibleEmployees}
+                  renderItem={(item: any) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={`${item.name}`}
+                        description={
+                          <div>
+                            <div>Total Average Score: <strong>{item.finalScore.toFixed(2)}</strong></div>
+                            <div>Requirement: {item.requiredScore}{item.isAssistant ? ' (Assistant)' : ''}</div>
+                            <div>Evaluations Completed: {item.evaluationCount}</div>
+                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                              Status: <Tag color={item.finalScore >= item.requiredScore ? 'green' : 'red'}>
+                                {item.finalScore >= item.requiredScore ? 'ELIGIBLE' : 'NOT ELIGIBLE'}
+                              </Tag>
                             </div>
                           </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+                        }
+                      />
+                      <div>
+                        <Tag color={item.isAssistant ? 'purple' : 'green'}>{item.isAssistant ? 'Assistant' : 'Regular'}</Tag>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              )}
             </div>
           </Card>
         </Col>

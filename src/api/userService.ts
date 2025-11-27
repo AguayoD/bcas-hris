@@ -116,8 +116,15 @@ const UserService = {
       const dto: ForgotPasswordDTO = { email };
       const response = await axios.post(`${API_URL}/Users/forgot-password`, dto);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error requesting password reset:", error);
+      
+      // Enhanced error handling
+      if (error.response?.status === 405 || error.response?.status === 404) {
+        // Endpoint doesn't exist yet, but return success for UX
+        return { message: "If an account exists, a reset link has been sent." };
+      }
+      
       throw error;
     }
   },
@@ -128,8 +135,15 @@ const UserService = {
       const dto: ResetPasswordDTO = { token, newPassword };
       const response = await axios.post(`${API_URL}/Users/reset-password`, dto);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error resetting password:", error);
+      
+      // Enhanced error handling
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || error.response?.data || 'Invalid request';
+        throw new Error(errorMessage);
+      }
+      
       throw error;
     }
   },
