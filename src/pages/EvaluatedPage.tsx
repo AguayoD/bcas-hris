@@ -9,12 +9,18 @@ import {
   Modal,
   Tag,
   Tabs,
+  Card,
+  Row,
+  Col,
+  Statistic,
 } from "antd";
 import {
   RedoOutlined,
   HistoryOutlined,
   CalendarOutlined,
   ExclamationCircleOutlined,
+  FileTextOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import axios from "../api/_axiosInstance";
@@ -50,6 +56,22 @@ interface EvalWithNames {
   employeeDepartments?: string[];
 }
 
+interface EvaluationHistoryItem {
+  evaluationHistoryID: number;
+  originalEvaluationID: number;
+  employeeID: number;
+  employeeName: string;
+  evaluatorID: number;
+  evaluatorName: string;
+  evaluationDate: string;
+  comments: string;
+  finalScore: number;
+  createdAt: string;
+  archivedAt: string;
+  scoresJson: string;
+  scores: SubGroupAnswer[];
+}
+
 interface SemesterData {
   S1: EvalWithNames[];
   S2: EvalWithNames[];
@@ -74,23 +96,28 @@ interface EmployeeTotalScore {
   isQuarterBased: boolean;
 }
 
+interface ResetEvaluationResponse {
+  message: string;
+  archivedCount: number;
+}
+
 const EvaluatedPage: React.FC = () => {
   const [evaluations, setEvaluations] = useState<EvalWithNames[]>([]);
+  const [evaluationHistory, setEvaluationHistory] = useState<EvaluationHistoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
   const [resetting, setResetting] = useState<boolean>(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedSemester, setSelectedSemester] = useState<string>("S1");
-  const [selectedHistoryDepartment, setSelectedHistoryDepartment] =
-    useState<string>("all");
+  const [selectedHistoryDepartment, setSelectedHistoryDepartment] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isResetModalVisible, setIsResetModalVisible] = useState(false);
-  const [selectedEvaluation, setSelectedEvaluation] =
-    useState<EvalWithNames | null>(null);
-  const [evaluationAnswers, setEvaluationAnswers] = useState<SubGroupAnswer[]>(
-    []
-  );
+  const [selectedEvaluation, setSelectedEvaluation] = useState<EvalWithNames | null>(null);
+  const [selectedHistoryEvaluation, setSelectedHistoryEvaluation] = useState<EvaluationHistoryItem | null>(null);
+  const [evaluationAnswers, setEvaluationAnswers] = useState<SubGroupAnswer[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const [historyModalLoading, setHistoryModalLoading] = useState(false);
   const [semesterData, setSemesterData] = useState<SemesterData>({
     S1: [],
     S2: [],
@@ -100,17 +127,12 @@ const EvaluatedPage: React.FC = () => {
     Q4: [],
   });
   const [availableYears, setAvailableYears] = useState<string[]>([]);
-  const [employeeTotals, setEmployeeTotals] = useState<EmployeeTotalScore[]>(
-    []
-  );
-  const [coordinatorDepartment, setCoordinatorDepartment] = useState<
-    string | null
-  >(null);
+  const [employeeTotals, setEmployeeTotals] = useState<EmployeeTotalScore[]>([]);
+  const [coordinatorDepartment, setCoordinatorDepartment] = useState<string | null>(null);
   const [coordinatorLoading, setCoordinatorLoading] = useState<boolean>(true);
-  const [selectedEmployeeHistory, setSelectedEmployeeHistory] = useState<
-    EvalWithNames[]
-  >([]);
+  const [selectedEmployeeHistory, setSelectedEmployeeHistory] = useState<EvalWithNames[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [isArchivedDetailsModalVisible, setIsArchivedDetailsModalVisible] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = user?.roleId === ROLES.Admin;
@@ -268,7 +290,21 @@ const EvaluatedPage: React.FC = () => {
 
   useEffect(() => {
     fetchEvaluations();
+    fetchEvaluationHistory();
   }, []);
+
+  const fetchEvaluationHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await axios.get("/Evaluations/history");
+      setEvaluationHistory(res.data);
+    } catch (error) {
+      console.error("Error fetching evaluation history:", error);
+      message.error("Failed to fetch evaluation history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const getSemesterFromDate = (
     date: string,
@@ -348,7 +384,6 @@ const EvaluatedPage: React.FC = () => {
   ): EmployeeTotalScore[] => {
     const employeeMap = new Map<number, EmployeeTotalScore>();
 
-    // const yearEvals = evals.filter(e => moment(e.evaluationDate).year().toString() === year);
     const yearEvals =
       year === "all"
         ? evals
@@ -530,12 +565,6 @@ const EvaluatedPage: React.FC = () => {
         })
       );
 
-      // const filteredEvaluations = filterEvaluationsByCoordinator(evaluationsWithDetails);
-
-      // console.log('Filtered Evaluations for coordinator:', filteredEvaluations.length);
-
-      // setEvaluations(filteredEvaluations);
-
       // Keep original for history
       setEvaluations(evaluationsWithDetails);
 
@@ -571,24 +600,6 @@ const EvaluatedPage: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Show only ONE record per employee (latest evaluation)
-  // const uniqueEmployees = Object.values(
-  //   filteredEvaluations.reduce((acc: any, curr) => {
-
-  //     const existing = acc[curr.employeeID];
-
-  //     // Keep latest evaluation only
-  //     if (
-  //       !existing ||
-  //       new Date(curr.evaluationDate) > new Date(existing.evaluationDate)
-  //     ) {
-  //       acc[curr.employeeID] = curr;
-  //     }
-
-  //     return acc;
-  //   }, {})
-  // );
 
   useEffect(() => {
     if (selectedYear && evaluations.length > 0) {
@@ -645,9 +656,10 @@ const EvaluatedPage: React.FC = () => {
     setIsResetModalVisible(false);
     setResetting(true);
     try {
-      await axios.post("/Evaluations/reset");
-      message.success("Evaluation data reset successfully");
+      const response = await axios.post<ResetEvaluationResponse>("/Evaluations/reset");
+      message.success(response.data.message);
       await fetchEvaluations();
+      await fetchEvaluationHistory(); // Refresh history after reset
       window.dispatchEvent(new CustomEvent("evaluationsReset"));
     } catch (error: any) {
       console.error("Error resetting evaluations:", error);
@@ -679,10 +691,33 @@ const EvaluatedPage: React.FC = () => {
     }
   };
 
+  const showArchivedDetailsModal = async (evaluation: EvaluationHistoryItem) => {
+    setSelectedHistoryEvaluation(evaluation);
+    setIsArchivedDetailsModalVisible(true);
+    setHistoryModalLoading(true);
+
+    try {
+      // If scores are not already loaded, fetch them
+      if (!evaluation.scores || evaluation.scores.length === 0) {
+        const res = await axios.get(`/Evaluations/history/${evaluation.evaluationHistoryID}`);
+        setSelectedHistoryEvaluation(res.data);
+      }
+    } catch (error) {
+      console.error("Error fetching archived evaluation details:", error);
+    } finally {
+      setHistoryModalLoading(false);
+    }
+  };
+
   const handleModalClose = () => {
     setIsModalVisible(false);
     setSelectedEvaluation(null);
     setEvaluationAnswers([]);
+  };
+
+  const handleArchivedModalClose = () => {
+    setIsArchivedDetailsModalVisible(false);
+    setSelectedHistoryEvaluation(null);
   };
 
   const columns: ColumnsType<EvalWithNames> = [
@@ -751,7 +786,7 @@ const EvaluatedPage: React.FC = () => {
             console.log("FULL HISTORY:", history);
 
             // Open modal and show employee history
-            setSelectedEmployeeHistory(history); // create a state for it
+            setSelectedEmployeeHistory(history);
             setShowHistoryModal(true);
           }}
         >
@@ -808,6 +843,46 @@ const EvaluatedPage: React.FC = () => {
       key: "action",
       render: (_, record) => (
         <Button type="link" onClick={() => showModal(record)}>
+          View Details
+        </Button>
+      ),
+    },
+  ];
+
+  const archivedColumns: ColumnsType<EvaluationHistoryItem> = [
+    {
+      title: "Employee",
+      dataIndex: "employeeName",
+      key: "employeeName",
+    },
+    {
+      title: "Evaluator",
+      dataIndex: "evaluatorName",
+      key: "evaluatorName",
+    },
+    {
+      title: "Evaluation Date",
+      dataIndex: "evaluationDate",
+      key: "evaluationDate",
+      render: (d: string) => new Date(d).toLocaleDateString(),
+    },
+    {
+      title: "Final Score",
+      dataIndex: "finalScore",
+      key: "finalScore",
+      render: (score: number) => score.toFixed(2),
+    },
+    {
+      title: "Archived Date",
+      dataIndex: "archivedAt",
+      key: "archivedAt",
+      render: (d: string) => new Date(d).toLocaleDateString(),
+    },
+    {
+      title: "Action",
+      key: "action",
+      render: (_, record) => (
+        <Button type="link" onClick={() => showArchivedDetailsModal(record)}>
           View Details
         </Button>
       ),
@@ -1117,7 +1192,7 @@ const EvaluatedPage: React.FC = () => {
               onClick={showResetConfirmation}
               danger
             >
-              Reset Evaluation Data
+              Archive & Reset Current Evaluations
             </Button>
           )}
         </div>
@@ -1257,15 +1332,6 @@ const EvaluatedPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              // <Table
-              //   rowKey="evaluationID"
-              //   columns={columns}
-              //   dataSource={currentSemesterData}
-              //   bordered
-              //   pagination={{ pageSize: 10 }}
-              //   sortDirections={['descend', 'ascend']}
-              // />
-
               <Table<EvalWithNames>
                 rowKey="employeeID"
                 columns={columns}
@@ -1287,6 +1353,65 @@ const EvaluatedPage: React.FC = () => {
                 })}
               />
             )}
+          </TabPane>
+
+          <TabPane
+            tab={
+              <span>
+                <DeleteOutlined /> Archived Evaluations
+              </span>
+            }
+            key="archived"
+          >
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col span={12}>
+                <Card>
+                  <Statistic
+                    title="Total Archived Evaluations"
+                    value={evaluationHistory.length}
+                    prefix={<DeleteOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col span={12}>
+                <Card>
+                  <Statistic
+                    title="Current Evaluations"
+                    value={evaluations.length}
+                    prefix={<FileTextOutlined />}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            <Spin spinning={historyLoading}>
+              {evaluationHistory.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "40px",
+                    backgroundColor: "#fafafa",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <DeleteOutlined style={{ fontSize: 48, color: "#d9d9d9", marginBottom: 16 }} />
+                  <p style={{ fontSize: "16px", color: "#999" }}>
+                    No archived evaluations found
+                  </p>
+                  <p style={{ fontSize: "14px", color: "#666", marginTop: 8 }}>
+                    Archived evaluations will appear here after using the "Archive & Reset" function
+                  </p>
+                </div>
+              ) : (
+                <Table
+                  rowKey="evaluationHistoryID"
+                  columns={archivedColumns}
+                  dataSource={evaluationHistory}
+                  bordered
+                  pagination={{ pageSize: 10 }}
+                />
+              )}
+            </Spin>
           </TabPane>
 
           {shouldShowSemesterTab() && (
@@ -1406,27 +1531,34 @@ const EvaluatedPage: React.FC = () => {
             <ExclamationCircleOutlined
               style={{ color: "#ff4d4f", marginRight: 8 }}
             />
-            Confirm Reset
+            Archive and Reset Current Evaluations
           </span>
         }
         open={isResetModalVisible}
         onOk={handleResetConfirm}
         onCancel={handleResetCancel}
-        okText="Yes, Reset All Data"
+        okText="Yes, Archive and Reset"
         cancelText="Cancel"
         okButtonProps={{ danger: true }}
+        width={600}
       >
         <p style={{ fontSize: "14px", marginBottom: 12 }}>
-          Are you sure you want to reset all evaluation data?
+          Are you sure you want to archive current evaluations and reset the system?
         </p>
         <p style={{ fontSize: "14px", color: "#ff4d4f", fontWeight: 500 }}>
-          This action will permanently delete all evaluation records and cannot
-          be undone.
+          This will:
+        </p>
+        <ul style={{ fontSize: "14px", color: "#ff4d4f", paddingLeft: 20, marginBottom: 12 }}>
+          <li>Move all current evaluations to history/archive</li>
+          <li>Clear current evaluation data for new evaluations</li>
+          <li>Preserve all historical data in the archive</li>
+        </ul>
+        <p style={{ fontSize: "14px", marginTop: 12 }}>
+          Previous evaluations will be available in the "Archived Evaluations" tab.
         </p>
       </Modal>
 
-      {/* Evaluation Details Modal */}
-      <div id="modals-container"></div>
+      {/* Current Evaluation Details Modal */}
       <Modal
         title="Evaluation Answers"
         open={isModalVisible}
@@ -1443,12 +1575,6 @@ const EvaluatedPage: React.FC = () => {
             <p>
               <strong>Employee Evaluated:</strong>{" "}
               {selectedEvaluation.employeeName}
-            </p>
-            <p>
-              <strong>Departments:</strong>{" "}
-              {(
-                selectedEvaluation.employeeDepartments || ["No Department"]
-              ).join(", ")}
             </p>
             <p>
               <strong>Final Score:</strong>{" "}
@@ -1489,13 +1615,83 @@ const EvaluatedPage: React.FC = () => {
           </>
         )}
       </Modal>
+
+      {/* Archived Evaluation Details Modal */}
+      <Modal
+        title="Archived Evaluation Details"
+        open={isArchivedDetailsModalVisible}
+        onCancel={handleArchivedModalClose}
+        footer={null}
+        width={700}
+        style={{ zIndex: 1050 }}
+      >
+        {selectedHistoryEvaluation && (
+          <>
+            <p>
+              <strong>Evaluator:</strong> {selectedHistoryEvaluation.evaluatorName}
+            </p>
+            <p>
+              <strong>Employee Evaluated:</strong>{" "}
+              {selectedHistoryEvaluation.employeeName}
+            </p>
+            <p>
+              <strong>Final Score:</strong>{" "}
+              {selectedHistoryEvaluation.finalScore.toFixed(2)}
+            </p>
+            <p>
+              <strong>Evaluation Date:</strong>{" "}
+              {new Date(selectedHistoryEvaluation.evaluationDate).toLocaleDateString()}
+            </p>
+            <p>
+              <strong>Archived Date:</strong>{" "}
+              {new Date(selectedHistoryEvaluation.archivedAt).toLocaleDateString()}
+            </p>
+
+            {selectedHistoryEvaluation.comments && (
+              <p>
+                <strong>Comments:</strong> {selectedHistoryEvaluation.comments}
+              </p>
+            )}
+
+            <Spin spinning={historyModalLoading}>
+              <Table<SubGroupAnswer>
+                rowKey="subGroupID"
+                dataSource={selectedHistoryEvaluation.scores}
+                pagination={false}
+                bordered
+                size="small"
+                columns={[
+                  {
+                    title: "SubGroup",
+                    dataIndex: "subGroupName",
+                    key: "subGroupName",
+                  },
+                  {
+                    title: "Score",
+                    dataIndex: "scoreValue",
+                    key: "scoreValue",
+                    render: (value) => <strong>{value}</strong>,
+                  },
+                  {
+                    title: "Label",
+                    dataIndex: "scoreLabel",
+                    key: "scoreLabel",
+                  },
+                ]}
+              />
+            </Spin>
+          </>
+        )}
+      </Modal>
+
+      {/* Employee Evaluation History Modal */}
       <Modal
         title="Employee Evaluation History"
         open={showHistoryModal}
         onCancel={() => setShowHistoryModal(false)}
         footer={null}
         width={800}
-getContainer={false} 
+        getContainer={false} 
       >
         <Table<EvalWithNames>
           rowKey="evaluationID"
