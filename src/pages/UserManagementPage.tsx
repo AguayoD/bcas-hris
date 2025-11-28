@@ -33,7 +33,7 @@ const UserManagementPage: React.FC = () => {
   const [formValues, setFormValues] = useState<any>(null);
 
   const roles: Role[] = [
-    { roleId: 1, roleName: "Admin" },
+    { roleId: 1, roleName: "admin" },
     { roleId: 2, roleName: "Teacher" },
     { roleId: 3, roleName: "Non-Teacher" },
     { roleId: 4, roleName: "Coordinator" },

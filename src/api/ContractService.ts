@@ -1,7 +1,7 @@
-import axios from 'axios';
+import axios from '../api/_axiosInstance';
 import { Contract } from '../types/tblContracts';
 
-const API_URL = "https://localhost:7245/api/Contracts";
+const API_URL = "/Contracts";
 
 export const ContractService = {
   async getByEmployeeId(employeeId: number): Promise<Contract[]> {
@@ -36,7 +36,6 @@ export const ContractService = {
     }
   ): Promise<Contract> {
     try {
-      // Validate file type on client side before upload
       const isPdf = file.type === 'application/pdf';
       const isImage = file.type.startsWith('image/');
       const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
@@ -47,8 +46,7 @@ export const ContractService = {
         throw new Error('Only PDF and image files (JPG, PNG, GIF, WebP, BMP) are allowed');
       }
 
-      // Validate file size (10MB limit)
-      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+      const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
         throw new Error('File must be smaller than 10MB');
       }
@@ -67,9 +65,9 @@ export const ContractService = {
       
       formData.append('lastUpdatedBy', contractData.lastUpdatedBy.toString());
 
-       if (contractData.contractCategory) {
-      formData.append('contractCategory', contractData.contractCategory);
-    }
+      if (contractData.contractCategory) {
+        formData.append('contractCategory', contractData.contractCategory);
+      }
 
       const response = await axios.post(API_URL, formData, {
         headers: {
@@ -95,7 +93,6 @@ export const ContractService = {
     }
   ): Promise<Contract> {
     try {
-      // Validate file type if a new file is provided
       if (contractData.file) {
         const file = contractData.file;
         const isPdf = file.type === 'application/pdf';
@@ -108,8 +105,7 @@ export const ContractService = {
           throw new Error('Only PDF and image files (JPG, PNG, GIF, WebP, BMP) are allowed');
         }
 
-        // Validate file size (10MB limit)
-        const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+        const maxSize = 10 * 1024 * 1024;
         if (file.size > maxSize) {
           throw new Error('File must be smaller than 10MB');
         }
@@ -132,8 +128,8 @@ export const ContractService = {
       formData.append('lastUpdatedBy', contractData.lastUpdatedBy.toString());
 
       if (contractData.contractCategory) {
-      formData.append('contractCategory', contractData.contractCategory);
-    }
+        formData.append('contractCategory', contractData.contractCategory);
+      }
 
       const response = await axios.put(`${API_URL}/${contractId}`, formData, {
         headers: {
@@ -175,7 +171,6 @@ export const ContractService = {
         responseType: 'blob',
       });
       
-      // Extract filename from content-disposition header
       const contentDisposition = response.headers['content-disposition'];
       let fileName = 'contract';
       if (contentDisposition) {
@@ -185,7 +180,6 @@ export const ContractService = {
         }
       }
       
-      // Determine file type from blob or filename
       let fileType = response.headers['content-type'] || '';
       if (!fileType && fileName) {
         if (fileName.endsWith('.pdf')) fileType = 'application/pdf';
@@ -239,7 +233,6 @@ export const ContractService = {
     }
   },
 
-  // ADD THIS NEW METHOD
   async checkExpirations(): Promise<any> {
     try {
       const response = await axios.post(`${API_URL}/check-expirations`);

@@ -1,23 +1,18 @@
-import axios from './_axiosInstance';   // ✅ already has token interceptor
+import axios from './_axiosInstance';
 import { Employee } from '../types/tblEmployees';
 
 export const EmployeeService = {
-
-  // CREATE
   async create(employee: Omit<Employee, 'employeeID'>): Promise<Employee> {
     const employeeData = { ...employee, employeeID: null };
-
     const response = await axios.post('/Employees', employeeData);
     return response.data;
   },
 
-  // GET ALL
   async getAll(): Promise<Employee[]> {
     const response = await axios.get('/Employees');
     return response.data;
   },
 
-  // UPDATE
   async update(id: number, employee: Partial<Employee>): Promise<Employee> {
     try {
       const payload = {
@@ -57,15 +52,18 @@ export const EmployeeService = {
 
       const response = await axios.patch<Employee>(`/Employees/${id}`, payload);
       return response.data;
-
     } catch (error) {
       console.error("Error in EmployeeService.update:", error);
       throw error;
     }
   },
 
-  // DELETE
   async delete(id: number): Promise<void> {
     await axios.delete(`/Employees/${id}`);
+  },
+
+  async getById(id: number): Promise<Employee> {
+    const response = await axios.get(`/Employees/${id}`);
+    return response.data;
   }
 };

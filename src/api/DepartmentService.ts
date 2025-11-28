@@ -1,12 +1,12 @@
 import { DepartmentTypes } from "../types/tblDepartment";
-import axios from "axios";
+import axios from "../api/_axiosInstance";
 
-const API_URL = "https://localhost:7245/api";
+const API_URL = "/Department";
 
 const DepartmentService = {
   getAll: async (): Promise<DepartmentTypes[]> => {
     try {
-      const response = await axios.get(`${API_URL}/Department?timestamp=${Date.now()}`);
+      const response = await axios.get(API_URL);
       return response.data;
     } catch (error) {
       console.error("Error fetching departments:", error);
@@ -16,7 +16,7 @@ const DepartmentService = {
 
   getById: async (departmentId: number): Promise<DepartmentTypes> => {
     try {
-      const response = await axios.get(`${API_URL}/Department/${departmentId}`);
+      const response = await axios.get(`${API_URL}/${departmentId}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching department ${departmentId}:`, error);
@@ -26,8 +26,7 @@ const DepartmentService = {
 
   create: async (departmentData: DepartmentTypes): Promise<DepartmentTypes> => {
     try {
-      const response = await axios.post(`${API_URL}/Department`, departmentData);
-      // Add notification after creation
+      const response = await axios.post(API_URL, departmentData);
       window.dispatchEvent(new CustomEvent('departments-updated', {
         detail: { action: 'create', department: response.data }
       }));
@@ -41,10 +40,9 @@ const DepartmentService = {
   update: async (departmentId: number, departmentData: Partial<DepartmentTypes>): Promise<DepartmentTypes> => {
     try {
       const response = await axios.patch(
-        `${API_URL}/Department/${departmentId}`,
+        `${API_URL}/${departmentId}`,
         departmentData
       );
-      // Add notification after update
       window.dispatchEvent(new CustomEvent('departments-updated', {
         detail: { action: 'update', department: response.data }
       }));
@@ -57,8 +55,7 @@ const DepartmentService = {
 
   delete: async (departmentId: number): Promise<void> => {
     try {
-      await axios.delete(`${API_URL}/Department/${departmentId}`);
-      // Add notification after deletion
+      await axios.delete(`${API_URL}/${departmentId}`);
       window.dispatchEvent(new CustomEvent('departments-updated', {
         detail: { action: 'delete', departmentId }
       }));
@@ -68,7 +65,6 @@ const DepartmentService = {
     }
   },
 
-  // Keep this for manual notifications if needed
   notifyChange: () => {
     window.dispatchEvent(new CustomEvent('departments-updated', {
       detail: { action: 'manual-refresh' }

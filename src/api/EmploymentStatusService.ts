@@ -1,83 +1,64 @@
 import { EmploymentStatusTypes } from "../types/tblEmploymentStatus";
+import axios from '../api/_axiosInstance';
 
-const API_BASE_URL = 'https://localhost:7245/api';
-const API_URL = API_BASE_URL + '/EmploymentStatus';
+const API_URL = '/EmploymentStatus';
 
 export const EmploymentStatusService = {
   getAll: async (): Promise<EmploymentStatusTypes[]> => {
-    const response = await fetch(`${API_URL}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch employment statuses');
+    try {
+      const response = await axios.get(API_URL);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching employment statuses:', error);
+      throw error;
     }
-    return response.json();
   },
 
   getById: async (id: number): Promise<EmploymentStatusTypes> => {
-    const response = await fetch(`${API_URL}/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch employment status');
+    try {
+      const response = await axios.get(`${API_URL}/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching employment status:', error);
+      throw error;
     }
-    return response.json();
   },
 
   create: async (status: Omit<EmploymentStatusTypes, 'employmentStatusID'>): Promise<EmploymentStatusTypes> => {
-    const response = await fetch(`${API_URL}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(status),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to create employment status');
+    try {
+      const response = await axios.post(API_URL, status);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating employment status:', error);
+      throw error;
     }
-    return response.json();
   },
 
-update: async (id: number, status: EmploymentStatusTypes): Promise<EmploymentStatusTypes> => {
-  console.log('Attempting to update employment status:', { id, status });
-  
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: 'PATCH', // Changed back to PATCH to match backend
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(status),
-  });
-  
-  console.log('Update response status:', response.status);
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Update error details:', {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText
-    });
-    throw new Error(`Failed to update employment status: ${response.status} ${response.statusText}`);
-  }
-  
-  return response.json();
-},
+  update: async (id: number, status: EmploymentStatusTypes): Promise<EmploymentStatusTypes> => {
+    try {
+      const response = await axios.patch(`${API_URL}/${id}`, status);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating employment status:', error);
+      if (error.response?.status === 400) {
+        throw new Error(error.response.data.message || 'Failed to update employment status');
+      }
+      throw error;
+    }
+  },
 
   delete: async (id: number): Promise<void> => {
-  console.log('Attempting to delete employment status with ID:', id);
-  
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: 'DELETE',
-  });
-  
-  console.log('Delete response status:', response.status);
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Delete error details:', {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText
-    });
-    throw new Error(`Failed to delete employment status: ${response.status} ${response.statusText}`);
-  }
-  
-},
+    try {
+      await axios.delete(`${API_URL}/${id}`);
+    } catch (error: any) {
+      console.error('Error deleting employment status:', error);
+      if (error.response?.status === 400) {
+        throw new Error('Cannot delete: This employment status may be referenced by other records');
+      } else if (error.response?.status === 404) {
+        throw new Error('Employment status not found');
+      } else {
+        throw new Error(`Failed to delete employment status: ${error.response?.statusText || 'Unknown error'}`);
+      }
+    }
+  },
 };

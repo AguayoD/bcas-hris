@@ -10,6 +10,7 @@ import {
   Spin,
   Popconfirm,
   Modal,
+  Switch,
 } from "antd";
 import {
   PlusOutlined,
@@ -50,6 +51,9 @@ const EducationalAttainmentPage: React.FC = () => {
   };
 
   const handleSubmit = async (values: EducationalAttainmentTypes) => {
+    console.log('Submitting data:', values);
+    console.log('Editing attainment:', editingAttainment);
+    
     try {
       if (editingAttainment?.educationalAttainmentID) {
         const updateData = {
@@ -66,29 +70,28 @@ const EducationalAttainmentPage: React.FC = () => {
         message.success("Educational attainment created successfully");
       }
       setIsModalVisible(false);
-      setSubmitPopconfirmVisible(false); // Close popconfirm
+      setSubmitPopconfirmVisible(false);
       form.resetFields();
       setEditingAttainment(null);
       setFormValues(null);
       setRefreshKey((prevKey) => prevKey + 1);
-    } catch (error) {
+    } catch (error: any) {
       message.error(
-        editingAttainment
-          ? "Failed to update educational attainment"
-          : "Failed to create educational attainment"
+        error.message || 
+        (editingAttainment 
+          ? "Failed to update educational attainment" 
+          : "Failed to create educational attainment")
       );
-      console.error(error);
-      setSubmitPopconfirmVisible(false); // Close popconfirm even on error
+      console.error('Detailed error:', error);
+      setSubmitPopconfirmVisible(false);
     }
   };
 
   const handleFormFinish = (values: EducationalAttainmentTypes) => {
     setFormValues(values);
     if (editingAttainment) {
-      // Show popconfirm for updates
       setSubmitPopconfirmVisible(true);
     } else {
-      // Direct submit for creates
       handleSubmit(values);
     }
   };
@@ -97,7 +100,7 @@ const EducationalAttainmentPage: React.FC = () => {
     if (formValues) {
       handleSubmit(formValues);
     }
-    setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+    setSubmitPopconfirmVisible(false);
   };
 
   const handleCancelUpdate = () => {
@@ -110,8 +113,8 @@ const EducationalAttainmentPage: React.FC = () => {
       await EducationalAttainmentService.delete(attainmentId);
       message.success("Educational attainment deleted successfully");
       setRefreshKey((prevKey) => prevKey + 1);
-    } catch (error) {
-      message.error("Failed to delete educational attainment");
+    } catch (error: any) {
+      message.error(error.message || "Failed to delete educational attainment");
       console.error(error);
     }
   };
@@ -146,7 +149,7 @@ const EducationalAttainmentPage: React.FC = () => {
       title: "Attainment Name",
       dataIndex: "attainmentName",
       key: "attainmentName",
-      width: "30%",
+      width: "25%",
       sorter: (a, b) => {
         if (!a.attainmentName || !b.attainmentName) return 0;
         return a.attainmentName.localeCompare(b.attainmentName);
@@ -156,7 +159,16 @@ const EducationalAttainmentPage: React.FC = () => {
       title: "Description",
       dataIndex: "description",
       key: "description",
-      width: "40%",
+      width: "35%",
+    },
+    {
+      title: "Active Status",
+      dataIndex: "isActive",
+      key: "isActive",
+      width: "15%",
+      render: (isActive: boolean) => (
+        <span>{isActive ? "Active" : "Inactive"}</span>
+      ),
     },
     {
       title: "Actions",
@@ -235,6 +247,14 @@ const EducationalAttainmentPage: React.FC = () => {
             ]}
           >
             <TextArea rows={4} placeholder="Enter attainment description" />
+          </Form.Item>
+
+          <Form.Item 
+            name="isActive" 
+            label="Active Status"
+            valuePropName="checked"
+          >
+            <Switch />
           </Form.Item>
 
           <Form.Item>
