@@ -791,20 +791,6 @@ const EvaluatedPage: React.FC = () => {
       key: "evaluatorName",
     },
     {
-      title: "Date",
-      dataIndex: "evaluationDate",
-      key: "evaluationDate",
-      render: (d: string) => new Date(d).toLocaleDateString(),
-    },
-    {
-      title: "Evaluation Score Average",
-      dataIndex: "finalScore",
-      key: "finalScore",
-      render: (score: number) => score.toFixed(2),
-      sorter: (a, b) => a.finalScore - b.finalScore,
-      defaultSortOrder: "descend",
-    },
-    {
       title: "Action",
       key: "action",
       render: (_, record) => (
@@ -1401,64 +1387,66 @@ const EvaluatedPage: React.FC = () => {
             )}
           </TabPane>
 
-          <TabPane
-            tab={
-              <span>
-                <DeleteOutlined /> Archived Evaluations
-              </span>
-            }
-            key="archived"
-          >
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={12}>
-                <Card>
-                  <Statistic
-                    title="Total Archived Evaluations"
-                    value={evaluationHistory.length}
-                    prefix={<DeleteOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card>
-                  <Statistic
-                    title="Current Evaluations"
-                    value={evaluations.length}
-                    prefix={<FileTextOutlined />}
-                  />
-                </Card>
-              </Col>
-            </Row>
+         {(isAdmin || isHR) && (
+  <TabPane
+    tab={
+      <span>
+        <DeleteOutlined /> Archived Evaluations
+      </span>
+    }
+    key="archived"
+  >
+    <Row gutter={16} style={{ marginBottom: 16 }}>
+      <Col span={12}>
+        <Card>
+          <Statistic
+            title="Total Archived Evaluations"
+            value={evaluationHistory.length}
+            prefix={<DeleteOutlined />}
+          />
+        </Card>
+      </Col>
+      <Col span={12}>
+        <Card>
+          <Statistic
+            title="Current Evaluations"
+            value={evaluations.length}
+            prefix={<FileTextOutlined />}
+          />
+        </Card>
+      </Col>
+    </Row>
 
-            <Spin spinning={historyLoading}>
-              {evaluationHistory.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "40px",
-                    backgroundColor: "#fafafa",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <DeleteOutlined style={{ fontSize: 48, color: "#d9d9d9", marginBottom: 16 }} />
-                  <p style={{ fontSize: "16px", color: "#999" }}>
-                    No archived evaluations found
-                  </p>
-                  <p style={{ fontSize: "14px", color: "#666", marginTop: 8 }}>
-                    Archived evaluations will appear here after using the "Archive & Reset" function
-                  </p>
-                </div>
-              ) : (
-                <Table
-                  rowKey="evaluationHistoryID"
-                  columns={archivedColumns}
-                  dataSource={evaluationHistory}
-                  bordered
-                  pagination={{ pageSize: 10 }}
-                />
-              )}
-            </Spin>
-          </TabPane>
+    <Spin spinning={historyLoading}>
+      {evaluationHistory.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "40px",
+            backgroundColor: "#fafafa",
+            borderRadius: "4px",
+          }}
+        >
+          <DeleteOutlined style={{ fontSize: 48, color: "#d9d9d9", marginBottom: 16 }} />
+          <p style={{ fontSize: "16px", color: "#999" }}>
+            No archived evaluations found
+          </p>
+          <p style={{ fontSize: "14px", color: "#666", marginTop: 8 }}>
+            Archived evaluations will appear here after using the "Archive & Reset" function
+          </p>
+        </div>
+      ) : (
+        <Table
+          rowKey="evaluationHistoryID"
+          columns={archivedColumns}
+          dataSource={evaluationHistory}
+          bordered
+          pagination={{ pageSize: 10 }}
+        />
+      )}
+    </Spin>
+  </TabPane>
+)}
 
           {shouldShowSemesterTab() && (
             <TabPane

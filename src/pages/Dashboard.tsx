@@ -69,7 +69,7 @@ const Dashboard: React.FC = () => {
   const [currentEmployee, setCurrentEmployee] = useState<EmployeeWithContracts | null>(null);
   const [chartView, setChartView] = useState<'hire' | 'contract' | 'evaluation'>('hire');
   const [hiringView, setHiringView] = useState<'monthly' | 'yearly'>('monthly');
-  const [employeeEvaluation, setEmployeeEvaluation] = useState<any>(null);
+  const [, setEmployeeEvaluation] = useState<any>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   const [sendingEmails, setSendingEmails] = useState<boolean>(false);
   
@@ -320,6 +320,8 @@ const Dashboard: React.FC = () => {
         evaluationScore: null,
         evaluationDate: null,
         role: getRoleName(user?.roleId),
+        totalAverageScore: null,
+        evaluationCount: 0,
       };
     }
 
@@ -344,6 +346,36 @@ const Dashboard: React.FC = () => {
 
     const hireDate = moment(currentEmployee.hireDate);
 
+    // Calculate total average score for the employee
+    let totalAverageScore = null;
+    let isEvaluated = false;
+    let evaluationDate = null;
+    let evaluationCount = 0;
+
+    if (currentEmployee.employeeID) {
+      const employeeEvaluations = evaluations.filter((evalItem: any) => 
+        evalItem.employeeID === currentEmployee.employeeID
+      );
+
+      evaluationCount = employeeEvaluations.length;
+
+      if (employeeEvaluations.length > 0) {
+        isEvaluated = true;
+        
+        // For employees/coordinators, calculate total average of all their evaluations
+        const totalScore = employeeEvaluations.reduce((sum: number, evalItem: any) => 
+          sum + evalItem.finalScore, 0
+        );
+        totalAverageScore = totalScore / employeeEvaluations.length;
+        
+        // Use the most recent evaluation date
+        evaluationDate = employeeEvaluations.reduce((latest: string, evalItem: any) => 
+          new Date(evalItem.evaluationDate) > new Date(latest) ? evalItem.evaluationDate : latest, 
+          employeeEvaluations[0].evaluationDate
+        );
+      }
+    }
+
     return {
       contractStatus,
       daysUntilContractEnd: Math.max(0, daysUntilContractEnd),
@@ -352,10 +384,12 @@ const Dashboard: React.FC = () => {
       hireDate: hireDate.format('MMMM D, YYYY'),
       employeeName: `${currentEmployee.firstName} ${currentEmployee.lastName}`,
       contractType,
-      isEvaluated: !!employeeEvaluation,
-      evaluationScore: employeeEvaluation?.finalScore || null,
-      evaluationDate: employeeEvaluation?.evaluationDate || null,
+      isEvaluated,
+      evaluationScore: totalAverageScore,
+      evaluationDate,
       role: getRoleName(currentEmployee.roleId),
+      totalAverageScore,
+      evaluationCount,
     };
   };
 
@@ -550,7 +584,7 @@ const Dashboard: React.FC = () => {
     },
     ...(employeeStats.isEvaluated ? [{
       title: "Evaluation Completed",
-      description: `Your performance evaluation has been completed with a score of ${employeeStats.evaluationScore?.toFixed(2) || 'N/A'}`,
+      description: `Your performance evaluation average is ${employeeStats.evaluationScore?.toFixed(2) || 'N/A'} based on ${employeeStats.evaluationCount} evaluation(s)`,
       type: "success",
       icon: <CheckCircleOutlined />,
       date: employeeStats.evaluationDate ? moment(employeeStats.evaluationDate).format("MMMM D, YYYY") : null,
@@ -565,7 +599,7 @@ const Dashboard: React.FC = () => {
       return employeeStats.evaluationScore >= requiredRating;
     })() ? [{
       title: "🎉 Performance Bonus Eligibility",
-      description: "Congratulations! Your evaluation score qualifies you for a performance bonus. To receive this bonus, you must meet the following requirements: no more than 5 late arrivals, no more than 3 absences in the school year, and no memorandums for policy violations.",
+      description: `Congratulations! Your evaluation average of ${employeeStats.evaluationScore?.toFixed(2)} qualifies you for a performance bonus. To receive this bonus, you must meet the following requirements: no more than 5 late arrivals, no more than 3 absences in the school year, and no memorandums for policy violations.`,
       type: "success",
       icon: <CheckCircleOutlined />,
     }] : []),
@@ -1020,8 +1054,13 @@ const totalAdminAndHR = employeeData.filter(e =>
                 style={{ fontSize: '14px', padding: '4px 8px' }}
                 icon={employeeStats.isEvaluated ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
               >
-                {employeeStats.isEvaluated ? `Score: ${employeeStats.evaluationScore?.toFixed(2)}` : 'Pending'}
+                {employeeStats.isEvaluated ? `Avg: ${employeeStats.evaluationScore?.toFixed(2)}` : 'Pending'}
               </Tag>
+              {employeeStats.isEvaluated && (
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  {employeeStats.evaluationCount} evaluation(s)
+                </div>
+              )}
             </div>
           </Card>
         </Col>
@@ -1257,8 +1296,13 @@ const totalAdminAndHR = employeeData.filter(e =>
                 style={{ fontSize: '14px', padding: '4px 8px' }}
                 icon={employeeStats.isEvaluated ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
               >
-                {employeeStats.isEvaluated ? `Score: ${employeeStats.evaluationScore?.toFixed(2)}` : 'Pending'}
+                {employeeStats.isEvaluated ? `Avg: ${employeeStats.evaluationScore?.toFixed(2)}` : 'Pending'}
               </Tag>
+              {employeeStats.isEvaluated && (
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  {employeeStats.evaluationCount} evaluation(s)
+                </div>
+              )}
             </div>
           </Card>
         </Col>
