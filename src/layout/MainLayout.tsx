@@ -86,27 +86,37 @@ const MainLayout = () => {
         key: "dashboard",
         icon: <DashboardOutlined />,
         label: "Dashboard",
-      },
-      {
-        key: "faculty",
-        icon: <TeamOutlined />,
-        label: "Employees",
       }
     ];
 
-    // Items available for both Admin and Coordinator
+    // Employees menu item - different behavior based on role
+    const employeesMenuItem = (isAdmin || isCoordinator || isHR)
+      ? {
+          key: "faculty",
+          icon: <TeamOutlined />,
+          label: "Employees",
+        }
+      : {
+          key: "faculty",
+          icon: <UserOutlined />,
+          label: "My Profile",
+        };
+
+    // Evaluation items - will be placed differently based on role
     const evaluationItems = [
       {
         key: "evaluationForm",
         icon: <FolderOutlined />,
         label: "Evaluation Form",
       },
-      {
-        key: "evaluatedPage",
-        icon: <FolderOutlined />,
-        label: "Evaluated Employees",
-      },
     ];
+
+    // Add evaluated page separately for different roles
+    const evaluatedPageItem = {
+      key: "evaluatedPage",
+      icon: <FolderOutlined />,
+      label: (isAdmin || isHR || isCoordinator) ? "Evaluated Employees" : "My Evaluations",
+    };
 
     const commonItems = [
       {
@@ -116,49 +126,49 @@ const MainLayout = () => {
       },
     ];
 
-    // Admin-only menu items grouped in a submenu
-    const adminSubMenu = isAdmin || isHR ? [
+    // Admin and HR submenu items (including evaluation items)
+    const adminSubMenuItems = [
+      ...evaluationItems,
+      evaluatedPageItem, // Moved evaluated page item here for Admin/HR
+      {
+        key: "departments",
+        icon: <TeamOutlined />,
+        label: "Department",
+      },
+      {
+        key: "positions",
+        icon: <TeamOutlined />,
+        label: "Positions",
+      },
+      {
+        key: 'educational-attainment',
+        icon: <BookOutlined />,
+        label: 'Educational Attainment',
+      },
+      {
+        key: 'employment-status', 
+        icon: <TeamOutlined />,
+        label: 'Employment Status',
+      },
+      {
+        key: "users",
+        icon: <UserOutlined />,
+        label: "User Management",
+      },
+      {
+        key: "logs",
+        icon: <UserOutlined />,
+        label: "Audit Logs",
+      },
+    ];
+
+    // Admin/HR submenu
+    const adminSubMenu = (isAdmin || isHR) ? [
       {
         key: "submenu-admin",
         icon: <SettingOutlined />,
         label: "System Management",
-        children: [
-          {
-            key: "departments",
-            icon: <TeamOutlined />,
-            label: "Department",
-          },
-          {
-            key: "positions",
-            icon: <TeamOutlined />,
-            label: "Positions",
-          },
-          {
-            key: 'educational-attainment',
-            icon: <BookOutlined />,
-            label: 'Educational Attainment',
-          },
-          {
-            key: 'employment-status', 
-            icon: <TeamOutlined />,
-            label: 'Employment Status',
-          },
-          {
-            key: "users",
-            icon: <UserOutlined />,
-            label: "User Management",
-          },
-          //  {
-          //   key: "audit-log",
-          //   icon: <UserOutlined />,
-          //   label: "Evaluation Logs",
-          // },
-                     {
-            key: "logs",
-            icon: <UserOutlined />,
-            label: "Audit Logs",
-          },
-        ]
+        children: adminSubMenuItems
       }
     ] : [];
 
@@ -171,15 +181,23 @@ const MainLayout = () => {
     // Build menu items array based on user role
     let menuItems = [...baseItems];
     
-    // Add evaluation items for both admin and coordinator
-    if (isAdmin || isCoordinator || isHR) {
-      menuItems = [...menuItems, ...evaluationItems];
+    // Add employees menu item
+    menuItems.push(employeesMenuItem);
+    
+    // Add evaluation items directly for coordinator (not for admin/HR as they're in submenu)
+    if (isCoordinator) {
+      menuItems = [...menuItems, ...evaluationItems, evaluatedPageItem];
     }
     
-    // Add common items
+    // Add evaluated page for normal employees (not admin/HR/coordinator)
+    if (!isAdmin && !isHR && !isCoordinator) {
+      menuItems.push(evaluatedPageItem);
+    }
+    
+    // Add common items for all roles
     menuItems = [...menuItems, ...commonItems];
     
-    // Add admin submenu right before logout
+    // Add admin submenu right before logout (for admin and HR only)
     if (isAdmin || isHR) {
       menuItems = [...menuItems, ...adminSubMenu];
     }

@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import axios from "../api/_axiosInstance";
 import DepartmentService from "../api/DepartmentService";
+import PositionService from "../api/PositionService";
 import { Spin, Input, Button, message, Alert, Card, Progress, DatePicker } from "antd";
 import { EditOutlined, DeleteOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import './EvaluationPage.css';
 import { ROLES } from "../types/auth";
 import { useAuth } from "../types/useAuth";
 import dayjs from 'dayjs';
+import { PositionTypes } from "../types/tblPosition";
 
 // Types
 type ScoreChoice = {
@@ -40,6 +42,7 @@ type Group = {
   name: string;
   description: string;
   weight: number;
+  groupTypeID: number;
   subGroups: SubGroup[];
   isEditing?: boolean;
   tempDescription?: string;
@@ -78,6 +81,7 @@ type Employee = {
   departmentName?: string;
   position?: string;
   hireDate?: string;
+  positionID?: number | null;
 };
 
 const scoreChoices: ScoreChoice[] = [
@@ -95,9 +99,11 @@ const EvaluationFormPage = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [positions, setPositions] = useState<PositionTypes[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedDepartmentID, setSelectedDepartmentID] = useState<number | null>(null);
   const [selectedEmployeeID, setSelectedEmployeeID] = useState<number | null>(null);
+  const [selectedPositionID, setSelectedPositionID] = useState<number | null>(null);
   const [comments, setComments] = useState("");
   const [scores, setScores] = useState<SubGroupScore[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -117,54 +123,80 @@ const EvaluationFormPage = () => {
   const [itemsBySubGroup, setItemsBySubGroup] = useState<Record<number, Item[]>>({});
   const [employeeRoles, setEmployeeRoles] = useState<Record<number, number>>({});
 
-  const hasUserEvaluatedEmployee = (employeeID: number) => {
-    return evaluations.some(evalItem => 
-      evalItem.employeeID === employeeID && evalItem.evaluatorID === user?.employeeId
-    );
-  };
-
-  const getUserDepartment = () => {
-    if (!user?.employeeId || employees.length === 0) return null;
+  // Simplified group type detection - ONLY uses position selection
+  const getGroupTypeForEmployee = (employeeID: number): number | null => {
+    if (!employeeID) return null;
     
-    const userEmployee = employees.find(emp => emp.employeeID === user.employeeId);
-    if (!userEmployee) return null;
+    console.log(`Getting group type for employee ${employeeID}`, {
+      selectedPositionID,
+      selectedDepartmentID
+    });
     
-    return departments.find(dept => dept.departmentID === userEmployee.departmentID) || null;
-  };
-
-  const getAvailableDepartments = () => {
-    const baseDepartments = isAdmin || isHR ? departments : (userDepartment ? [userDepartment] : []);
-    
-    if (isAdmin || isHR) {
-      return [
-        ...baseDepartments,
-        {
-          departmentID: NON_TEACHING_DEPARTMENT_ID,
-          departmentName: "Non-teachers",
-          description: "Non-teaching staff from all departments"
+    // For non-teaching department with position selected
+    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && selectedPositionID) {
+      const selectedPosition = positions.find(p => p.positionID === selectedPositionID);
+      if (selectedPosition) {
+        const positionName = (selectedPosition.positionName || "").toLowerCase();
+        console.log(`Position: "${selectedPosition.positionName}" -> GroupType detection`);
+        
+        // Security positions
+        if (positionName.includes('security') || positionName.includes('guard')) {
+          return 4;
         }
-      ];
+        // Maintenance positions
+        if (positionName.includes('maintenance') || positionName.includes('janitor') || positionName.includes('cleaner') ||
+            positionName.includes('technician') ||  positionName.includes('custodian')) {
+          return 5;
+        }
+        // All other non-teaching positions default to Admin
+        return 3;
+      }
     }
     
-    return baseDepartments;
+    // Default to Teaching evaluation for all other cases
+    return 1;
   };
 
+  // Filter groups by group type
+  const getFilteredGroups = (): Group[] => {
+    if (!selectedEmployeeID) {
+      return editing ? groups : [];
+    }
+    
+    const groupTypeID = getGroupTypeForEmployee(selectedEmployeeID);
+    console.log(`Employee ${selectedEmployeeID} - GroupType: ${groupTypeID}`);
+    
+    if (!groupTypeID) return [];
+    
+    const filtered = groups.filter(group => group.groupTypeID === groupTypeID);
+    console.log(`Filtered groups for type ${groupTypeID}:`, filtered);
+    
+    return filtered;
+  };
+
+  // Simplified item visibility - based on department selection only
   const shouldShowTeachingItems = (employeeID: number) => {
     if (!employeeID) return true;
-    const role = employeeRoles[employeeID];
-    return role !== ROLES.NonTeaching && 
-           (role === ROLES.Teaching || role === ROLES.Coordinator || role === ROLES.Admin || role === ROLES.HR);
+    // For non-teaching department, don't show teaching items
+    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
+      return false;
+    }
+    return true;
   };
 
   const shouldShowNonTeachingItems = (employeeID: number) => {
     if (!employeeID) return true;
-    const role = employeeRoles[employeeID];
     
     if (isCoordinator) {
       return false;
     }
     
-    return role === ROLES.NonTeaching || role === ROLES.Admin || role === ROLES.HR;
+    // For non-teaching department, show non-teaching items
+    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
+      return true;
+    }
+    
+    return false;
   };
 
   const getItemsByType = (items: Item[], type: 'teaching' | 'non-teaching') => {
@@ -183,8 +215,9 @@ const EvaluationFormPage = () => {
     if (!selectedEmployeeID) return [];
     
     const visibleSubGroups: SubGroup[] = [];
+    const filteredGroups = getFilteredGroups();
     
-    groups.forEach(group => {
+    filteredGroups.forEach(group => {
       group.subGroups.forEach(subGroup => {
         const items = itemsBySubGroup[subGroup.subGroupID] || [];
         
@@ -274,6 +307,38 @@ const EvaluationFormPage = () => {
     return 'Poor';
   };
 
+  const hasUserEvaluatedEmployee = (employeeID: number) => {
+    return evaluations.some(evalItem => 
+      evalItem.employeeID === employeeID && evalItem.evaluatorID === user?.employeeId
+    );
+  };
+
+  const getUserDepartment = () => {
+    if (!user?.employeeId || employees.length === 0) return null;
+    
+    const userEmployee = employees.find(emp => emp.employeeID === user.employeeId);
+    if (!userEmployee) return null;
+    
+    return departments.find(dept => dept.departmentID === userEmployee.departmentID) || null;
+  };
+
+  const getAvailableDepartments = () => {
+    const baseDepartments = isAdmin || isHR ? departments : (userDepartment ? [userDepartment] : []);
+    
+    if (isAdmin || isHR) {
+      return [
+        ...baseDepartments,
+        {
+          departmentID: NON_TEACHING_DEPARTMENT_ID,
+          departmentName: "Non-teachers",
+          description: "Non-teaching staff from all departments"
+        }
+      ];
+    }
+    
+    return baseDepartments;
+  };
+
   const filteredEmployees = selectedDepartmentID
     ? employees.filter(emp => {
         if (emp.employeeID === user?.employeeId) {
@@ -283,20 +348,25 @@ const EvaluationFormPage = () => {
         const isNonTeachingDepartment = selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID;
         
         if (isNonTeachingDepartment) {
-          const targetEmployeeRole = employeeRoles[emp.employeeID];
-          return targetEmployeeRole === ROLES.NonTeaching;
+          // For non-teaching department, show all employees (we'll filter by position)
+          return true;
         } else {
-          const targetEmployeeRole = employeeRoles[emp.employeeID];
-          if (targetEmployeeRole === ROLES.NonTeaching) {
+          // For teaching departments, apply coordinator restrictions if needed
+          if (isCoordinator) {
+            // Coordinators can only evaluate teaching staff in their department
+            const belongsToDepartment = 
+              emp.departmentID === selectedDepartmentID ||
+              emp.departmentID2 === selectedDepartmentID || 
+              emp.departmentID3 === selectedDepartmentID;
+            
+            if (belongsToDepartment) {
+              const userHasEvaluated = hasUserEvaluatedEmployee(emp.employeeID);
+              return !userHasEvaluated;
+            }
             return false;
           }
           
-          if (isCoordinator) {
-            if (targetEmployeeRole === ROLES.Coordinator || targetEmployeeRole === ROLES.NonTeaching) {
-              return false;
-            }
-          }
-          
+          // Regular teaching department filtering
           const belongsToDepartment = 
             emp.departmentID === selectedDepartmentID ||
             emp.departmentID2 === selectedDepartmentID || 
@@ -304,16 +374,77 @@ const EvaluationFormPage = () => {
           
           if (belongsToDepartment) {
             const userHasEvaluated = hasUserEvaluatedEmployee(emp.employeeID);
-            if (userHasEvaluated) {
-              return false;
-            }
-            
-            return true;
+            return !userHasEvaluated;
           }
           return false;
         }
       })
     : [];
+
+  // Get positions for non-teaching employees from PositionService - filtered to only Security, Maintenance, and Admin Staff
+  const getNonTeachingPositions = () => {
+    // Filter positions that are actually used by non-teaching employees
+    const nonTeachingEmployeePositions = new Set<string>();
+    
+    filteredEmployees.forEach(emp => {
+      // Add positionID if available and valid
+      if (emp.positionID && emp.positionID > 0) {
+        nonTeachingEmployeePositions.add(emp.positionID.toString());
+      }
+      // Add position name if available
+      if (emp.position) {
+        nonTeachingEmployeePositions.add(emp.position);
+      }
+    });
+    
+    return positions.filter(position => {
+      const positionIdStr = position.positionID?.toString() || '';
+      const positionName = (position.positionName || '').toLowerCase();
+      
+      // Only include Security, Maintenance, and Admin Staff positions
+      const isSecurity = positionName.includes('security') || positionName.includes('guard');
+      const isMaintenance = positionName.includes('maintenance') || positionName.includes('janitor') || 
+                           positionName.includes('technician') || positionName.includes('custodian');
+      const isAdminStaff = positionName.includes('admin') || positionName.includes('staff') || 
+                          positionName.includes('clerk') || positionName.includes('secretary') ||
+                          positionName.includes('assistant');
+      
+      const isAllowedPosition = isSecurity || isMaintenance || isAdminStaff;
+      
+      return isAllowedPosition && (
+        nonTeachingEmployeePositions.has(positionIdStr) || 
+        nonTeachingEmployeePositions.has(position.positionName || '')
+      );
+    });
+  };
+
+  // Get employees filtered by selected position
+  const getFilteredEmployeesByPosition = () => {
+    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
+      // For non-teaching department, require position selection first
+      if (!selectedPositionID) {
+        return [];
+      }
+      
+      const selectedPosition = positions.find(p => p.positionID === selectedPositionID);
+      if (!selectedPosition) return [];
+      
+      return filteredEmployees.filter(emp => {
+        // Match by positionID if available
+        if (emp.positionID && emp.positionID === selectedPositionID) {
+          return true;
+        }
+        // Match by position name as fallback
+        if (emp.position && emp.position === selectedPosition.positionName) {
+          return true;
+        }
+        return false;
+      });
+    }
+    
+    // For teaching departments, return all filtered employees
+    return filteredEmployees;
+  };
 
   useEffect(() => {
     loadData();
@@ -332,16 +463,30 @@ const EvaluationFormPage = () => {
 
   useEffect(() => {
     setMissingScores([]);
-  }, [selectedEmployeeID]);
+    setSelectedPositionID(null);
+    setSelectedEmployeeID(null); // Reset employee when department changes
+    setScores([]);
+    setCurrentEfficiencyRating(0);
+  }, [selectedDepartmentID]);
+
+  useEffect(() => {
+    // Reset employee when position changes for non-teaching department
+    if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
+      setSelectedEmployeeID(null);
+      setScores([]);
+      setCurrentEfficiencyRating(0);
+    }
+  }, [selectedPositionID]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [groupsRes, employeesRes, departmentsRes, evaluationsRes] = await Promise.all([
+      const [groupsRes, employeesRes, departmentsRes, evaluationsRes, positionsRes] = await Promise.all([
         axios.get("/EvaluationStructure/groups"),
         axios.get("/Employees"),
         DepartmentService.getAll(),
-        axios.get("/Evaluations")
+        axios.get("/Evaluations"),
+        PositionService.getAll()
       ]);
 
       const groupsData = await Promise.all(
@@ -371,6 +516,7 @@ const EvaluationFormPage = () => {
       setEmployees(employeesData);
 
       setEvaluations(evaluationsRes.data);
+      setPositions(positionsRes || []);
 
       const allSubgroups = groupsData.flatMap((g) => g.subGroups);
       const subItemsList = await Promise.all(
@@ -423,6 +569,15 @@ const EvaluationFormPage = () => {
   const handleDepartmentChange = (departmentID: number) => {
     setSelectedDepartmentID(departmentID);
     setSelectedEmployeeID(null);
+    setSelectedPositionID(null);
+    setScores([]);
+    setMissingScores([]);
+    setCurrentEfficiencyRating(0);
+  };
+
+  const handlePositionChange = (positionID: number | null) => {
+    setSelectedPositionID(positionID);
+    setSelectedEmployeeID(null);
     setScores([]);
     setMissingScores([]);
     setCurrentEfficiencyRating(0);
@@ -468,7 +623,7 @@ const EvaluationFormPage = () => {
         message.error("Coordinators cannot evaluate other coordinators.");
         return;
       }
-      if (targetEmployeeRole === ROLES.NonTeaching) {
+      if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
         message.error("Coordinators cannot evaluate non-teaching staff.");
         return;
       }
@@ -554,11 +709,12 @@ const EvaluationFormPage = () => {
           setSelectedDepartmentID(userDepartment?.departmentID || null);
         }
         setSelectedEmployeeID(null);
+        setSelectedPositionID(null);
         setComments("");
         setScores([]);
         setMissingScores([]);
         setCurrentEfficiencyRating(0);
-        setEvaluationDate(dayjs()); // Reset to current date
+        setEvaluationDate(dayjs());
       })
       .catch((err: any) => {
         console.error("Error submitting evaluation:", err);
@@ -909,6 +1065,9 @@ const EvaluationFormPage = () => {
   const bonusQualification = selectedEmployeeID && currentEfficiencyRating > 0 
     ? checkBonusQualification(currentEfficiencyRating, selectedEmployeeID) 
     : null;
+  const nonTeachingPositions = getNonTeachingPositions();
+  const positionFilteredEmployees = getFilteredEmployeesByPosition();
+  const filteredGroups = getFilteredGroups();
 
   return (
     <Spin spinning={loading || submitting} tip={submitting ? "Submitting..." : "Loading..."}>
@@ -947,8 +1106,6 @@ const EvaluationFormPage = () => {
               <div>
                 <p style={{ marginBottom: 8 }}>To qualify for annual performance bonus, employees must:</p>
                 <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
-                  <li>Not be late more than 5 times in a school year</li>
-                  <li>Not be absent more than 3 times</li>
                   <li>Not have any memorandums for policy violations</li>
                   <li><strong>Have an efficiency rating of 4.2 and above</strong> (4.5 for Assistants)</li>
                 </ul>
@@ -978,6 +1135,7 @@ const EvaluationFormPage = () => {
         <div style={{ marginBottom: 20 }} className="form-section">
           <h2>Employee Information</h2>
           <div className="form-row">
+            {/* Department Selection */}
             {(isAdmin || isHR) ? (
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label>Select Department: </label>
@@ -1011,8 +1169,37 @@ const EvaluationFormPage = () => {
               </div>
             )}
 
+            {/* Position Selection for Non-teaching Department */}
+            {selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && (
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Select Position: </label>
+                <select
+                  value={selectedPositionID ?? ""}
+                  onChange={(e) => handlePositionChange(e.target.value ? Number(e.target.value) : null)}
+                  className="form-control"
+                >
+                  <option value="" disabled>
+                    Select a position first
+                  </option>
+                  {nonTeachingPositions.map(position => (
+                    <option key={position.positionID} value={position.positionID || ''}>
+                      {position.positionName}
+                    </option>
+                  ))}
+                </select>
+                {nonTeachingPositions.length === 0 && selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && (
+                  <div style={{ color: '#ff4d4f', fontSize: '14px', marginTop: 4 }}>
+                    No positions available for non-teaching staff evaluation.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Employee Selection */}
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Select Employee: </label>
+              <label>
+                {selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID ? "Select Employee: " : "Select Employee: "}
+              </label>
               <select
                 value={selectedEmployeeID ?? ""}
                 onChange={(e) => {
@@ -1021,55 +1208,59 @@ const EvaluationFormPage = () => {
                   setMissingScores([]);
                 }}
                 className="form-control"
-                disabled={!selectedDepartmentID}
+                disabled={!selectedDepartmentID || (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && !selectedPositionID)}
               >
                 <option value="" disabled>
-                  {selectedDepartmentID ? "-- Select an employee --" : "-- Select department first --"}
+                  {selectedDepartmentID ? 
+                    (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID ? 
+                      (selectedPositionID ? `-- Select employee for this position --` : "-- Select position first --") 
+                      : "-- Select an employee --") 
+                    : "-- Select department first --"}
                 </option>
-                {filteredEmployees.length > 0 ? (
-                  filteredEmployees.map((emp) => {
-                    const role = employeeRoles[emp.employeeID];
-                    const isNonTeaching = role === ROLES.NonTeaching;
-                    
-                    if (isNonTeaching) {
-                      return (
-                        <option key={emp.employeeID} value={emp.employeeID}>
-                          {emp.firstName} {emp.lastName} - {emp.position || 'Non-Teaching Staff'}
-                        </option>
-                      );
-                    }
-                    
-                    const primaryDept = departments.find(d => d.departmentID === emp.departmentID)?.departmentName;
-                    const secondaryDept = emp.departmentID2 ? departments.find(d => d.departmentID === emp.departmentID2)?.departmentName : null;
-                    const tertiaryDept = emp.departmentID3 ? departments.find(d => d.departmentID === emp.departmentID3)?.departmentName : null;
-                    
-                    let departmentsString = [primaryDept, secondaryDept, tertiaryDept]
-                      .filter(Boolean)
-                      .join(' / ');
-                    
-                    const roleName = role === ROLES.Teaching ? 'Teaching' : 
-                                   role === ROLES.Coordinator ? 'Coordinator' : 
-                                   role === ROLES.Admin ? 'Admin' : 
-                                   role === ROLES.HR ? 'HR' : 'Unknown';
-                    
+                
+                {positionFilteredEmployees.map((emp) => {
+                  if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
                     return (
                       <option key={emp.employeeID} value={emp.employeeID}>
-                        {emp.firstName} {emp.lastName} ({roleName}) - {departmentsString}
+                        {emp.firstName} {emp.lastName}
                       </option>
                     );
-                  })
-                ) : (
+                  }
+                  
+                  // Regular teaching staff display
+                  const primaryDept = departments.find(d => d.departmentID === emp.departmentID)?.departmentName;
+                  const secondaryDept = emp.departmentID2 ? departments.find(d => d.departmentID === emp.departmentID2)?.departmentName : null;
+                  const tertiaryDept = emp.departmentID3 ? departments.find(d => d.departmentID === emp.departmentID3)?.departmentName : null;
+                  
+                  let departmentsString = [primaryDept, secondaryDept, tertiaryDept]
+                    .filter(Boolean)
+                    .join(' / ');
+                  
+                  return (
+                    <option key={emp.employeeID} value={emp.employeeID}>
+                      {emp.firstName} {emp.lastName} - {departmentsString}
+                    </option>
+                  );
+                })}
+                
+                {positionFilteredEmployees.length === 0 && (
                   <option value="" disabled>
-                    {selectedDepartmentID ? "No available employees to evaluate" : "-- Select department first --"}
+                    {selectedDepartmentID ? 
+                      (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID ?
+                        (selectedPositionID ? "No employees found for this position" : "Select a position first")
+                        : "No available employees to evaluate") 
+                      : "-- Select department first --"}
                   </option>
                 )}
               </select>
-              {selectedDepartmentID && filteredEmployees.length === 0 && (
+              {selectedDepartmentID && positionFilteredEmployees.length === 0 && (
                 <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
                   {isCoordinator 
                     ? "No employees available for evaluation in this department, or you have already evaluated all available employees. Note: Coordinators cannot evaluate other coordinators or non-teaching staff."
                     : selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID
-                    ? "No non-teaching employees available for evaluation, or you have already evaluated all non-teaching staff."
+                    ? selectedPositionID 
+                      ? "No employees found for the selected position."
+                      : "Please select a position first."
                     : "No employees available for evaluation in this department, or you have already evaluated all employees."
                   }
                 </div>
@@ -1098,6 +1289,8 @@ const EvaluationFormPage = () => {
             </div>
           </div>
 
+         
+
           {/* Real-time Efficiency Rating Display */}
           {selectedEmployeeID && (
             <Card 
@@ -1115,6 +1308,12 @@ const EvaluationFormPage = () => {
                   <p style={{ margin: 0, color: '#666' }}>
                     Position: {selectedEmployee?.position || 'N/A'} | 
                     Years of Service: {yearsOfService} {yearsOfService === 1 ? 'year' : 'years'}
+                  </p>
+                  <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+                    Evaluation Type: {getGroupTypeForEmployee(selectedEmployeeID) === 1 ? 'Teaching' : 
+                                     getGroupTypeForEmployee(selectedEmployeeID) === 3 ? 'Admin Staff' :
+                                     getGroupTypeForEmployee(selectedEmployeeID) === 4 ? 'Security' :
+                                     getGroupTypeForEmployee(selectedEmployeeID) === 5 ? 'Maintenance' : 'General'}
                   </p>
                 </div>
                 
@@ -1182,7 +1381,21 @@ const EvaluationFormPage = () => {
           )}
         </div>
 
-        {groups.map((group) => (
+        {/* Show warning if no evaluation form available for selected employee */}
+        {selectedEmployeeID && filteredGroups.length === 0 && (
+          <Alert
+            message="No Evaluation Form Available"
+            description={`No evaluation form is configured for this employee's position type (${getGroupTypeForEmployee(selectedEmployeeID) === 1 ? 'Teaching' : 
+                         getGroupTypeForEmployee(selectedEmployeeID) === 3 ? 'Admin Staff' :
+                         getGroupTypeForEmployee(selectedEmployeeID) === 4 ? 'Security' :
+                         getGroupTypeForEmployee(selectedEmployeeID) === 5 ? 'Maintenance' : 'General'}). Please contact administrator.`}
+            type="warning"
+            showIcon
+            style={{ marginBottom: 20 }}
+          />
+        )}
+
+        {filteredGroups.map((group) => (
           <div key={group.groupID} style={{ marginBottom: 30 }} className="form-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               {group.isEditing ? (
@@ -1265,7 +1478,7 @@ const EvaluationFormPage = () => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                       <p style={{ margin: 0, flex: 1 }}>
-                        <strong>SubGroup:</strong> 
+                        <strong>Group:</strong> 
                         {sub.isEditing ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                             <Input
@@ -1323,7 +1536,7 @@ const EvaluationFormPage = () => {
                     {(!selectedEmployeeID || shouldShowTeachingItems(selectedEmployeeID)) && (
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                          <strong>Teaching Evaluation Items:</strong>
+                          
                           {editing && (
                             <Button 
                               type="dashed" 
@@ -1337,7 +1550,7 @@ const EvaluationFormPage = () => {
                         
                         {getItemsByType(items, 'teaching').length > 0 && (
                           <div style={{ padding: '8px 0', borderBottom: '1px solid #e8e8e8' }}>
-                            <strong style={{ color: '#1890ff' }}>Teaching Items:</strong>
+                            <strong style={{ color: '#1890ff' }}>Items:</strong>
                           </div>
                         )}
                         <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
@@ -1400,7 +1613,7 @@ const EvaluationFormPage = () => {
                     {!isCoordinator && (!selectedEmployeeID || shouldShowNonTeachingItems(selectedEmployeeID)) && (
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                          <strong>Non-Teaching Evaluation Items:</strong>
+                       
                           {editing && (
                             <Button 
                               type="dashed" 
@@ -1414,7 +1627,7 @@ const EvaluationFormPage = () => {
                         
                         {getItemsByType(items, 'non-teaching').length > 0 && (
                           <div style={{ padding: '8px 0', borderBottom: '1px solid #e8e8e8' }}>
-                            <strong style={{ color: '#52c41a' }}>Non-Teaching Items:</strong>
+                            <strong style={{ color: '#52c41a' }}>Items:</strong>
                           </div>
                         )}
                         <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
@@ -1491,7 +1704,7 @@ const EvaluationFormPage = () => {
                         )}
                         {isMissing && (
                           <span style={{ color: '#ff4d4f', marginLeft: 8, fontSize: '14px' }}>
-                            ⚠️ Please select a rating
+                             Please select a rating
                           </span>
                         )}
                       </strong>
@@ -1560,7 +1773,7 @@ const EvaluationFormPage = () => {
           size="large"
           onClick={handleSubmit}
           loading={submitting}
-          disabled={!selectedDepartmentID || !selectedEmployeeID}
+          disabled={!selectedDepartmentID || !selectedEmployeeID || getFilteredGroups().length === 0}
           style={{ minWidth: 200 }}
         >
           Submit Evaluation

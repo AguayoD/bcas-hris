@@ -212,7 +212,7 @@ const FacultyPage: React.FC = () => {
     const positionName = position?.positionName?.toLowerCase() || '';
     
     // Positions that should NOT have department
-    const nonDepartmentPositions = ['hr', 'admin', 'non-teaching', 'non-teacher'];
+    const nonDepartmentPositions = ['hr', 'admin', 'non-teaching', 'non-teacher','security', 'maintenance', 'janitor', 'cleaner', 'technician', 'custodian'];
     
     return !nonDepartmentPositions.some(nonDeptPos => 
       positionName.includes(nonDeptPos)
@@ -1757,7 +1757,11 @@ const FacultyPage: React.FC = () => {
 
     return (
       <div className="faculty-page-container" ref={tableRef}>
-        <Card title="Faculty Members" className="faculty-card" extra={cardExtra}>
+        <Card 
+            title={isAdmin || isHR || isCoordinator ? "Faculty Members" : "My Profile"} 
+            className="faculty-card" 
+            extra={cardExtra}
+          >
           <Table
             columns={columns}
             dataSource={filteredData}

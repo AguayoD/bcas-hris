@@ -123,7 +123,7 @@ function App() {
           <Route 
             path="/evaluatedPage" 
             element={
-              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
+              <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR, ROLES.Teaching, ROLES.NonTeaching]}>
                 <EvaluatedPage />
               </ProtectedRoute>
             } 
