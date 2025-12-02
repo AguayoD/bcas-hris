@@ -85,11 +85,11 @@ type Employee = {
 };
 
 const scoreChoices: ScoreChoice[] = [
-  { value: 1, label: "Poor (1.0)" },
-  { value: 2, label: "Fair (2.0)" },
-  { value: 3, label: "Satisfactory (3.0)" },
-  { value: 4, label: "Very Satisfactory (4.0)" },
-  { value: 5, label: "Excellent (5.0)" },
+  { value: 1, label: "Poor" },
+  { value: 2, label: "Fair" },
+  { value: 3, label: "Satisfactory" },
+  { value: 4, label: "Very Satisfactory" },
+  { value: 5, label: "Excellent" },
 ];
 
 // Special ID for the virtual Non-teachers department
@@ -127,33 +127,23 @@ const EvaluationFormPage = () => {
   const getGroupTypeForEmployee = (employeeID: number): number | null => {
     if (!employeeID) return null;
     
-    console.log(`Getting group type for employee ${employeeID}`, {
-      selectedPositionID,
-      selectedDepartmentID
-    });
-    
     // For non-teaching department with position selected
     if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && selectedPositionID) {
       const selectedPosition = positions.find(p => p.positionID === selectedPositionID);
       if (selectedPosition) {
         const positionName = (selectedPosition.positionName || "").toLowerCase();
-        console.log(`Position: "${selectedPosition.positionName}" -> GroupType detection`);
         
-        // Security positions
         if (positionName.includes('security') || positionName.includes('guard')) {
           return 4;
         }
-        // Maintenance positions
         if (positionName.includes('maintenance') || positionName.includes('janitor') || positionName.includes('cleaner') ||
             positionName.includes('technician') ||  positionName.includes('custodian')) {
           return 5;
         }
-        // All other non-teaching positions default to Admin
         return 3;
       }
     }
     
-    // Default to Teaching evaluation for all other cases
     return 1;
   };
 
@@ -164,20 +154,13 @@ const EvaluationFormPage = () => {
     }
     
     const groupTypeID = getGroupTypeForEmployee(selectedEmployeeID);
-    console.log(`Employee ${selectedEmployeeID} - GroupType: ${groupTypeID}`);
-    
     if (!groupTypeID) return [];
     
-    const filtered = groups.filter(group => group.groupTypeID === groupTypeID);
-    console.log(`Filtered groups for type ${groupTypeID}:`, filtered);
-    
-    return filtered;
+    return groups.filter(group => group.groupTypeID === groupTypeID);
   };
 
-  // Simplified item visibility - based on department selection only
   const shouldShowTeachingItems = (employeeID: number) => {
     if (!employeeID) return true;
-    // For non-teaching department, don't show teaching items
     if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
       return false;
     }
@@ -186,16 +169,12 @@ const EvaluationFormPage = () => {
 
   const shouldShowNonTeachingItems = (employeeID: number) => {
     if (!employeeID) return true;
-    
     if (isCoordinator) {
       return false;
     }
-    
-    // For non-teaching department, show non-teaching items
     if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
       return true;
     }
-    
     return false;
   };
 
@@ -235,7 +214,6 @@ const EvaluationFormPage = () => {
     return visibleSubGroups;
   };
 
-  // Calculate efficiency rating in real-time
   const calculateEfficiencyRating = () => {
     if (scores.length === 0) return 0;
     
@@ -248,13 +226,11 @@ const EvaluationFormPage = () => {
     return averageScore;
   };
 
-  // Update efficiency rating whenever scores change
   useEffect(() => {
     const rating = calculateEfficiencyRating();
     setCurrentEfficiencyRating(rating);
   }, [scores, selectedEmployeeID]);
 
-  // Get years of service for selected employee
   const getYearsOfService = (employeeID: number) => {
     const employee = employees.find(emp => emp.employeeID === employeeID);
     if (!employee || !employee.hireDate) return 0;
@@ -266,7 +242,6 @@ const EvaluationFormPage = () => {
     return Math.floor(years);
   };
 
-  // Check if employee qualifies for performance bonus
   const checkBonusQualification = (efficiencyRating: number, employeeID: number) => {
     const employee = employees.find(emp => emp.employeeID === employeeID);
     if (!employee) return { qualifies: false, reason: "Employee not found" };
@@ -287,17 +262,15 @@ const EvaluationFormPage = () => {
     };
   };
 
-  // Get rating color based on score
   const getRatingColor = (rating: number) => {
-    if (rating >= 4.5) return '#52c41a'; // Green - Excellent
-    if (rating >= 4.0) return '#73d13d'; // Light green - Very Satisfactory
-    if (rating >= 3.5) return '#fadb14'; // Yellow - Good
-    if (rating >= 3.0) return '#fa8c16'; // Orange - Satisfactory
-    if (rating >= 2.0) return '#ff4d4f'; // Red - Fair
-    return '#cf1322'; // Dark red - Poor
+    if (rating >= 4.5) return '#52c41a';
+    if (rating >= 4.0) return '#73d13d';
+    if (rating >= 3.5) return '#fadb14';
+    if (rating >= 3.0) return '#fa8c16';
+    if (rating >= 2.0) return '#ff4d4f';
+    return '#cf1322';
   };
 
-  // Get rating label
   const getRatingLabel = (rating: number) => {
     if (rating >= 4.5) return 'Excellent';
     if (rating >= 4.0) return 'Very Satisfactory';
@@ -348,12 +321,9 @@ const EvaluationFormPage = () => {
         const isNonTeachingDepartment = selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID;
         
         if (isNonTeachingDepartment) {
-          // For non-teaching department, show all employees (we'll filter by position)
           return true;
         } else {
-          // For teaching departments, apply coordinator restrictions if needed
           if (isCoordinator) {
-            // Coordinators can only evaluate teaching staff in their department
             const belongsToDepartment = 
               emp.departmentID === selectedDepartmentID ||
               emp.departmentID2 === selectedDepartmentID || 
@@ -366,7 +336,6 @@ const EvaluationFormPage = () => {
             return false;
           }
           
-          // Regular teaching department filtering
           const belongsToDepartment = 
             emp.departmentID === selectedDepartmentID ||
             emp.departmentID2 === selectedDepartmentID || 
@@ -381,17 +350,13 @@ const EvaluationFormPage = () => {
       })
     : [];
 
-  // Get positions for non-teaching employees from PositionService - filtered to only Security, Maintenance, and Admin Staff
   const getNonTeachingPositions = () => {
-    // Filter positions that are actually used by non-teaching employees
     const nonTeachingEmployeePositions = new Set<string>();
     
     filteredEmployees.forEach(emp => {
-      // Add positionID if available and valid
       if (emp.positionID && emp.positionID > 0) {
         nonTeachingEmployeePositions.add(emp.positionID.toString());
       }
-      // Add position name if available
       if (emp.position) {
         nonTeachingEmployeePositions.add(emp.position);
       }
@@ -401,7 +366,6 @@ const EvaluationFormPage = () => {
       const positionIdStr = position.positionID?.toString() || '';
       const positionName = (position.positionName || '').toLowerCase();
       
-      // Only include Security, Maintenance, and Admin Staff positions
       const isSecurity = positionName.includes('security') || positionName.includes('guard');
       const isMaintenance = positionName.includes('maintenance') || positionName.includes('janitor') || 
                            positionName.includes('technician') || positionName.includes('custodian');
@@ -418,10 +382,8 @@ const EvaluationFormPage = () => {
     });
   };
 
-  // Get employees filtered by selected position
   const getFilteredEmployeesByPosition = () => {
     if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
-      // For non-teaching department, require position selection first
       if (!selectedPositionID) {
         return [];
       }
@@ -430,11 +392,9 @@ const EvaluationFormPage = () => {
       if (!selectedPosition) return [];
       
       return filteredEmployees.filter(emp => {
-        // Match by positionID if available
         if (emp.positionID && emp.positionID === selectedPositionID) {
           return true;
         }
-        // Match by position name as fallback
         if (emp.position && emp.position === selectedPosition.positionName) {
           return true;
         }
@@ -442,7 +402,6 @@ const EvaluationFormPage = () => {
       });
     }
     
-    // For teaching departments, return all filtered employees
     return filteredEmployees;
   };
 
@@ -464,13 +423,12 @@ const EvaluationFormPage = () => {
   useEffect(() => {
     setMissingScores([]);
     setSelectedPositionID(null);
-    setSelectedEmployeeID(null); // Reset employee when department changes
+    setSelectedEmployeeID(null);
     setScores([]);
     setCurrentEfficiencyRating(0);
   }, [selectedDepartmentID]);
 
   useEffect(() => {
-    // Reset employee when position changes for non-teaching department
     if (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID) {
       setSelectedEmployeeID(null);
       setScores([]);
@@ -523,14 +481,8 @@ const EvaluationFormPage = () => {
         allSubgroups.map(async (sub) => {
           try {
             const respItems = await axios.get(`/EvaluationStructure/items/by-subgroup/${sub.subGroupID}`);
-            
-            const items = (respItems.data || []).map((dbItem: any) => ({
-              ...dbItem,
-            }));
-            
-            return { subGroupID: sub.subGroupID, items };
+            return { subGroupID: sub.subGroupID, items: respItems.data || [] };
           } catch (error) {
-            console.error(`Error loading items for subgroup ${sub.subGroupID}:`, error);
             return { subGroupID: sub.subGroupID, items: [] };
           }
         })
@@ -608,7 +560,6 @@ const EvaluationFormPage = () => {
       return;
     }
 
-    // Validate evaluation date
     const selectedDate = evaluationDate;
     const today = dayjs();
     
@@ -672,16 +623,6 @@ const EvaluationFormPage = () => {
       finalScore: finalScore,
     };
 
-    console.log('Submitting evaluation:', {
-      employeeID: evaluation.employeeID,
-      evaluatorID: evaluation.evaluatorID,
-      evaluationDate: evaluation.evaluationDate,
-      scoresCount: evaluation.scores.length,
-      scores: evaluation.scores,
-      comments: evaluation.comments,
-      finalScore: evaluation.finalScore
-    });
-
     setSubmitting(true);
 
     axios
@@ -718,7 +659,6 @@ const EvaluationFormPage = () => {
       })
       .catch((err: any) => {
         console.error("Error submitting evaluation:", err);
-        console.error("Error response:", err.response?.data);
         message.error(`Error submitting evaluation: ${err.response?.data?.message || err.response?.data || err.message}`);
       })
       .finally(() => {
@@ -765,7 +705,6 @@ const EvaluationFormPage = () => {
       
       message.success("Group description updated successfully");
     } catch (error: any) {
-      console.error("Error updating group:", error);
       message.error(`Failed to update group description: ${error.response?.data || error.message}`);
     }
   };
@@ -779,7 +718,6 @@ const EvaluationFormPage = () => {
     }));
   };
 
-  // SubGroup editing functions
   const startEditingSubGroup = (groupID: number, subGroupID: number) => {
     setGroups(prev => prev.map(group => {
       if (group.groupID === groupID) {
@@ -843,7 +781,6 @@ const EvaluationFormPage = () => {
       
       message.success("SubGroup name updated successfully");
     } catch (error: any) {
-      console.error("Error updating subgroup:", error);
       message.error(`Failed to update subgroup name: ${error.response?.data || error.message}`);
     }
   };
@@ -865,7 +802,6 @@ const EvaluationFormPage = () => {
     }));
   };
 
-  // Item editing functions
   const startEditingItem = (subGroupID: number, itemID: number) => {
     setItemsBySubGroup(prev => {
       const updated = { ...prev };
@@ -916,12 +852,7 @@ const EvaluationFormPage = () => {
         if (updated[subGroupID]) {
           updated[subGroupID] = updated[subGroupID].map(item => {
             if (item.itemID === itemID) {
-              return { 
-                ...item, 
-                description: newDescription, 
-                isEditing: false, 
-                tempDescription: undefined 
-              };
+              return { ...item, description: newDescription, isEditing: false, tempDescription: undefined };
             }
             return item;
           });
@@ -931,7 +862,6 @@ const EvaluationFormPage = () => {
       
       message.success("Item description updated successfully");
     } catch (error: any) {
-      console.error("Error updating item:", error);
       message.error(`Failed to update item description: ${error.response?.data?.message || error.message}`);
     }
   };
@@ -977,7 +907,6 @@ const EvaluationFormPage = () => {
       
       message.success("New subgroup added successfully");
     } catch (error: any) {
-      console.error("Error adding subgroup:", error);
       message.error(`Failed to add new subgroup: ${error.response?.data || error.message}`);
     }
   };
@@ -1008,7 +937,6 @@ const EvaluationFormPage = () => {
       
       message.success(`New ${itemType} item added successfully`);
     } catch (error: any) {
-      console.error("Error adding item:", error);
       message.error(`Failed to add new item: ${error.response?.data?.message || error.message}`);
     }
   };
@@ -1035,7 +963,6 @@ const EvaluationFormPage = () => {
       
       message.success("SubGroup deleted successfully");
     } catch (error: any) {
-      console.error("Error deleting subgroup:", error);
       message.error(`Failed to delete subgroup: ${error.response?.data || error.message}`);
     }
   };
@@ -1054,7 +981,6 @@ const EvaluationFormPage = () => {
       
       message.success("Item deleted successfully");
     } catch (error: any) {
-      console.error("Error deleting item:", error);
       message.error(`Failed to delete item: ${error.response?.data || error.message}`);
     }
   };
@@ -1083,14 +1009,14 @@ const EvaluationFormPage = () => {
                 <Button 
                   type="link" 
                   onClick={() => setEditing(!editing)}
-                  style={{ marginLeft: 10 }}
+                  style={{ marginLeft: 10, color: 'white' }}
                 >
                   {editing ? "Exit Edit Mode" : "Edit Form Structure"}
                 </Button>
                 <Button 
                   type="link" 
                   onClick={loadData}
-                  style={{ marginLeft: 10 }}
+                  style={{ marginLeft: 10, color: 'white' }}
                   loading={loading}
                 >
                   Refresh Data
@@ -1099,7 +1025,6 @@ const EvaluationFormPage = () => {
             )}
           </p>
           
-          {/* Performance Bonus Requirements Info */}
           <Alert
             message="Performance Bonus Requirements"
             description={
@@ -1135,7 +1060,6 @@ const EvaluationFormPage = () => {
         <div style={{ marginBottom: 20 }} className="form-section">
           <h2>Employee Information</h2>
           <div className="form-row">
-            {/* Department Selection */}
             {(isAdmin || isHR) ? (
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label>Select Department: </label>
@@ -1144,9 +1068,7 @@ const EvaluationFormPage = () => {
                   onChange={(e) => handleDepartmentChange(Number(e.target.value))}
                   className="form-control"
                 >
-                  <option value="" disabled>
-                    Select a department
-                  </option>
+                  <option value="" disabled>Select a department</option>
                   {availableDepartments.map((dept) => (
                     <option key={dept.departmentID} value={dept.departmentID}>
                       {dept.departmentName}
@@ -1161,15 +1083,9 @@ const EvaluationFormPage = () => {
                 <div style={{ padding: '8px 0', fontWeight: 'bold' }}>
                   {userDepartment ? userDepartment.departmentName : 'N/A'}
                 </div>
-                {!userDepartment && (
-                  <div style={{ color: '#ff4d4f', fontSize: '14px', marginTop: 4 }}>
-                    No department assigned. Please contact administrator.
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Position Selection for Non-teaching Department */}
             {selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && (
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label>Select Position: </label>
@@ -1178,28 +1094,18 @@ const EvaluationFormPage = () => {
                   onChange={(e) => handlePositionChange(e.target.value ? Number(e.target.value) : null)}
                   className="form-control"
                 >
-                  <option value="" disabled>
-                    Select a position first
-                  </option>
+                  <option value="" disabled>Select a position first</option>
                   {nonTeachingPositions.map(position => (
                     <option key={position.positionID} value={position.positionID || ''}>
                       {position.positionName}
                     </option>
                   ))}
                 </select>
-                {nonTeachingPositions.length === 0 && selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID && (
-                  <div style={{ color: '#ff4d4f', fontSize: '14px', marginTop: 4 }}>
-                    No positions available for non-teaching staff evaluation.
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Employee Selection */}
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>
-                {selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID ? "Select Employee: " : "Select Employee: "}
-              </label>
+              <label>Select Employee: </label>
               <select
                 value={selectedEmployeeID ?? ""}
                 onChange={(e) => {
@@ -1213,7 +1119,7 @@ const EvaluationFormPage = () => {
                 <option value="" disabled>
                   {selectedDepartmentID ? 
                     (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID ? 
-                      (selectedPositionID ? `-- Select employee for this position --` : "-- Select position first --") 
+                      (selectedPositionID ? "-- Select employee --" : "-- Select position first --") 
                       : "-- Select an employee --") 
                     : "-- Select department first --"}
                 </option>
@@ -1227,7 +1133,6 @@ const EvaluationFormPage = () => {
                     );
                   }
                   
-                  // Regular teaching staff display
                   const primaryDept = departments.find(d => d.departmentID === emp.departmentID)?.departmentName;
                   const secondaryDept = emp.departmentID2 ? departments.find(d => d.departmentID === emp.departmentID2)?.departmentName : null;
                   const tertiaryDept = emp.departmentID3 ? departments.find(d => d.departmentID === emp.departmentID3)?.departmentName : null;
@@ -1242,29 +1147,7 @@ const EvaluationFormPage = () => {
                     </option>
                   );
                 })}
-                
-                {positionFilteredEmployees.length === 0 && (
-                  <option value="" disabled>
-                    {selectedDepartmentID ? 
-                      (selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID ?
-                        (selectedPositionID ? "No employees found for this position" : "Select a position first")
-                        : "No available employees to evaluate") 
-                      : "-- Select department first --"}
-                  </option>
-                )}
               </select>
-              {selectedDepartmentID && positionFilteredEmployees.length === 0 && (
-                <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '14px' }}>
-                  {isCoordinator 
-                    ? "No employees available for evaluation in this department, or you have already evaluated all available employees. Note: Coordinators cannot evaluate other coordinators or non-teaching staff."
-                    : selectedDepartmentID === NON_TEACHING_DEPARTMENT_ID
-                    ? selectedPositionID 
-                      ? "No employees found for the selected position."
-                      : "Please select a position first."
-                    : "No employees available for evaluation in this department, or you have already evaluated all employees."
-                  }
-                </div>
-              )}
             </div>
 
             <div className="form-group" style={{ marginBottom: 16 }}>
@@ -1276,22 +1159,13 @@ const EvaluationFormPage = () => {
                 onChange={(date) => setEvaluationDate(date || dayjs())}
                 format="MMMM DD, YYYY"
                 style={{ width: '100%', maxWidth: '300px' }}
-                disabledDate={(current) => {
-                  // Cannot select future dates
-                  return current && current > dayjs().endOf('day');
-                }}
+                disabledDate={(current) => current && current > dayjs().endOf('day')}
                 size="large"
                 placeholder="Select evaluation date"
               />
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                Select the date when the evaluation was conducted
-              </div>
             </div>
           </div>
 
-         
-
-          {/* Real-time Efficiency Rating Display */}
           {selectedEmployeeID && (
             <Card 
               style={{ 
@@ -1309,23 +1183,13 @@ const EvaluationFormPage = () => {
                     Position: {selectedEmployee?.position || 'N/A'} | 
                     Years of Service: {yearsOfService} {yearsOfService === 1 ? 'year' : 'years'}
                   </p>
-                  <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-                    Evaluation Type: {getGroupTypeForEmployee(selectedEmployeeID) === 1 ? 'Teaching' : 
-                                     getGroupTypeForEmployee(selectedEmployeeID) === 3 ? 'Admin Staff' :
-                                     getGroupTypeForEmployee(selectedEmployeeID) === 4 ? 'Security' :
-                                     getGroupTypeForEmployee(selectedEmployeeID) === 5 ? 'Maintenance' : 'General'}
-                  </p>
                 </div>
                 
                 <div style={{ textAlign: 'center', minWidth: 200 }}>
                   <div style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>
                     Current Efficiency Rating
                   </div>
-                  <div style={{ 
-                    fontSize: 36, 
-                    fontWeight: 'bold', 
-                    color: getRatingColor(currentEfficiencyRating)
-                  }}>
+                  <div style={{ fontSize: 36, fontWeight: 'bold', color: getRatingColor(currentEfficiencyRating) }}>
                     {currentEfficiencyRating > 0 ? currentEfficiencyRating.toFixed(2) : '--'}
                   </div>
                   <div style={{ fontSize: 14, color: getRatingColor(currentEfficiencyRating), fontWeight: 500 }}>
@@ -1381,373 +1245,213 @@ const EvaluationFormPage = () => {
           )}
         </div>
 
-        {/* Show warning if no evaluation form available for selected employee */}
         {selectedEmployeeID && filteredGroups.length === 0 && (
           <Alert
             message="No Evaluation Form Available"
-            description={`No evaluation form is configured for this employee's position type (${getGroupTypeForEmployee(selectedEmployeeID) === 1 ? 'Teaching' : 
-                         getGroupTypeForEmployee(selectedEmployeeID) === 3 ? 'Admin Staff' :
-                         getGroupTypeForEmployee(selectedEmployeeID) === 4 ? 'Security' :
-                         getGroupTypeForEmployee(selectedEmployeeID) === 5 ? 'Maintenance' : 'General'}). Please contact administrator.`}
+            description="No evaluation form is configured for this employee's position type. Please contact administrator."
             type="warning"
             showIcon
             style={{ marginBottom: 20 }}
           />
         )}
 
-        {filteredGroups.map((group) => (
-          <div key={group.groupID} style={{ marginBottom: 30 }} className="form-section">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              {group.isEditing ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Input
-                    value={group.tempDescription || group.description}
-                    onChange={(e) => handleGroupDescriptionChange(group.groupID, e.target.value)}
-                    style={{ width: 400 }}
-                    placeholder="Enter group description"
-                  />
-                  <Button 
-                    size="small" 
-                    type="primary"
-                    onClick={() => saveGroupDescription(group.groupID, group.tempDescription || group.description)}
-                  >
-                    Save
-                  </Button>
-                  <Button 
-                    size="small" 
-                    onClick={() => cancelEditingGroup(group.groupID)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <h2 style={{ margin: 0 }}>
-                    {group.description}
-                    {editing && (
-                      <Button 
-                        type="link" 
-                        size="small" 
-                        icon={<EditOutlined />}
-                        onClick={() => startEditingGroup(group.groupID)}
-                        style={{ marginLeft: 8 }}
-                      >
-                        Edit Name
-                      </Button>
-                    )}
-                  </h2>
-                  {editing && (
-                    <Button 
-                      type="dashed" 
-                      onClick={() => addNewSubGroup(group.groupID)}
-                    >
-                      + Add SubGroup
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
+        {/* Evaluation Groups - Table Format Like Image */}
+        {filteredGroups.map((group) => {
+          const visibleSubGroups = group.subGroups.filter(sub => {
+            if (editing) return true;
+            if (!selectedEmployeeID) return false;
+            
+            const items = itemsBySubGroup[sub.subGroupID] || [];
+            const hasTeaching = shouldShowTeachingItems(selectedEmployeeID) && getItemsByType(items, 'teaching').length > 0;
+            const hasNonTeaching = shouldShowNonTeachingItems(selectedEmployeeID) && getItemsByType(items, 'non-teaching').length > 0;
+            return hasTeaching || hasNonTeaching;
+          });
 
-            {group.subGroups && group.subGroups.length > 0 ? (
-              group.subGroups.map((sub) => {
-                const items = itemsBySubGroup[sub.subGroupID] || [];
-                const hasTeachingItems = shouldShowTeachingItems(selectedEmployeeID || 0) && 
-                                        getItemsByType(items, 'teaching').length > 0;
-                const hasNonTeachingItems = shouldShowNonTeachingItems(selectedEmployeeID || 0) && 
-                                           getItemsByType(items, 'non-teaching').length > 0;
-                
-                if (!editing && selectedEmployeeID && !hasTeachingItems && !hasNonTeachingItems) {
-                  return null;
-                }
-                
-                const isMissing = missingScores.includes(sub.subGroupID);
-                
-                return (
-                  <div
-                    key={sub.subGroupID}
-                    id={`subgroup-${sub.subGroupID}`}
-                    style={{ 
-                      marginBottom: 20, 
-                      border: isMissing ? '2px solid #ff4d4f' : '1px solid #d9d9d9', 
-                      padding: 16, 
-                      borderRadius: 8,
-                      backgroundColor: isMissing ? '#fff1f0' : 'white',
-                      transition: 'all 0.3s ease'
-                    }}
-                    className="rating-group"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                      <p style={{ margin: 0, flex: 1 }}>
-                        <strong>Group:</strong> 
-                        {sub.isEditing ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                            <Input
-                              value={sub.tempName || sub.name}
-                              onChange={(e) => handleSubGroupNameChange(group.groupID, sub.subGroupID, e.target.value)}
-                              style={{ width: 300 }}
-                              placeholder="Enter subgroup name"
-                            />
-                            <Button 
-                              size="small" 
-                              type="primary"
-                              onClick={() => saveSubGroupName(group.groupID, sub.subGroupID, sub.tempName || sub.name)}
-                            >
-                              Save
-                            </Button>
-                            <Button 
-                              size="small" 
-                              onClick={() => cancelEditingSubGroup(group.groupID, sub.subGroupID)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <span style={{ marginLeft: 8 }}>
-                            {sub.name}
-                            {selectedEmployeeID && (
-                              <span style={{ color: '#ff4d4f', marginLeft: 4, fontWeight: 'bold' }}>*</span>
-                            )}
-                            {editing && (
-                              <div style={{ display: 'inline-flex', gap: 4, marginLeft: 8 }}>
-                                <Button 
-                                  type="link" 
-                                  size="small" 
-                                  icon={<EditOutlined />}
-                                  onClick={() => startEditingSubGroup(group.groupID, sub.subGroupID)}
-                                >
-                                  Edit Name
-                                </Button>
-                                <Button 
-                                  type="link" 
-                                  size="small" 
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => deleteSubGroup(group.groupID, sub.subGroupID)}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            )}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    
-                    {(!selectedEmployeeID || shouldShowTeachingItems(selectedEmployeeID)) && (
-                      <div style={{ marginBottom: 16 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                          
-                          {editing && (
-                            <Button 
-                              type="dashed" 
-                              size="small"
-                              onClick={() => addNewItem(sub.subGroupID, 'teaching')}
-                            >
-                              + Add Teaching Item
-                            </Button>
-                          )}
-                        </div>
-                        
-                        {getItemsByType(items, 'teaching').length > 0 && (
-                          <div style={{ padding: '8px 0', borderBottom: '1px solid #e8e8e8' }}>
-                            <strong style={{ color: '#1890ff' }}>Items:</strong>
-                          </div>
-                        )}
-                        <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                          {getItemsByType(items, 'teaching').map((item) => (
-                            <li key={item.itemID} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                              {item.isEditing ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <Input
-                                    value={item.tempDescription || item.description}
-                                    onChange={(e) => handleItemDescriptionChange(sub.subGroupID, item.itemID, e.target.value)}
-                                    style={{ flex: 1 }}
-                                    placeholder="Enter item description"
-                                  />
-                                  <Button 
-                                    size="small" 
-                                    type="primary"
-                                    onClick={() => saveItemDescription(sub.subGroupID, item.itemID, item.tempDescription || item.description)}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button 
-                                    size="small" 
-                                    onClick={() => cancelEditingItem(sub.subGroupID, item.itemID)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ flex: 1 }}>{item.description}</span>
-                                  {editing && (
-                                    <div style={{ display: 'flex', gap: 4 }}>
-                                      <Button 
-                                        type="link" 
-                                        size="small" 
-                                        icon={<EditOutlined />}
-                                        onClick={() => startEditingItem(sub.subGroupID, item.itemID)}
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button 
-                                        type="link" 
-                                        size="small" 
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => deleteItem(sub.subGroupID, item.itemID)}
-                                      >
-                                        Delete
-                                      </Button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+          if (!editing && visibleSubGroups.length === 0) return null;
 
-                    {!isCoordinator && (!selectedEmployeeID || shouldShowNonTeachingItems(selectedEmployeeID)) && (
-                      <div style={{ marginBottom: 16 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                       
-                          {editing && (
-                            <Button 
-                              type="dashed" 
-                              size="small"
-                              onClick={() => addNewItem(sub.subGroupID, 'non-teaching')}
-                            >
-                              + Add Non-Teaching Item
-                            </Button>
-                          )}
-                        </div>
-                        
-                        {getItemsByType(items, 'non-teaching').length > 0 && (
-                          <div style={{ padding: '8px 0', borderBottom: '1px solid #e8e8e8' }}>
-                            <strong style={{ color: '#52c41a' }}>Items:</strong>
-                          </div>
-                        )}
-                        <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                          {getItemsByType(items, 'non-teaching').map((item) => (
-                            <li key={item.itemID} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                              {item.isEditing ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <Input
-                                    value={item.tempDescription || item.description}
-                                    onChange={(e) => handleItemDescriptionChange(sub.subGroupID, item.itemID, e.target.value)}
-                                    style={{ flex: 1 }}
-                                    placeholder="Enter item description"
-                                  />
-                                  <Button 
-                                    size="small" 
-                                    type="primary"
-                                    onClick={() => saveItemDescription(sub.subGroupID, item.itemID, item.tempDescription || item.description)}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button 
-                                    size="small" 
-                                    onClick={() => cancelEditingItem(sub.subGroupID, item.itemID)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ flex: 1 }}>{item.description}</span>
-                                  {editing && (
-                                    <div style={{ display: 'flex', gap: 4 }}>
-                                      <Button 
-                                        type="link" 
-                                        size="small" 
-                                        icon={<EditOutlined />}
-                                        onClick={() => startEditingItem(sub.subGroupID, item.itemID)}
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button 
-                                        type="link" 
-                                        size="small" 
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => deleteItem(sub.subGroupID, item.itemID)}
-                                      >
-                                        Delete
-                                      </Button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {(!items || items.length === 0) && (
-                      <div style={{ padding: '16px 0', textAlign: 'center' }}>
-                        <p style={{ color: '#999', fontStyle: 'italic', margin: 0 }}>
-                          No items available for this subgroup.
-                          {editing && ' Click "Add Teaching Item" or "Add Non-Teaching Item" to create one.'}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e8e8e8' }}>
-                      <strong>
-                        Rating:
-                        {selectedEmployeeID && (
-                          <span style={{ color: '#ff4d4f', marginLeft: 4 }}>* </span>
-                        )}
-                        {isMissing && (
-                          <span style={{ color: '#ff4d4f', marginLeft: 8, fontSize: '14px' }}>
-                             Please select a rating
-                          </span>
-                        )}
-                      </strong>
-                      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                        {scoreChoices.map((choice) => (
-                          <label key={choice.value} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input
-                              type="radio"
-                              name={`subgroup-${sub.subGroupID}`}
-                              value={choice.value}
-                              checked={
-                                scores.find((s) => s.subGroupID === sub.subGroupID)
-                                  ?.scoreValue === choice.value
-                              }
-                              onChange={() => handleScoreChange(sub.subGroupID, choice.value)}
-                              style={{ marginRight: 4 }}
-                              disabled={!selectedEmployeeID}
-                            />
-                            {choice.label}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
+          return (
+            <div key={group.groupID} className="evaluation-group">
+              {/* Main Group Header - Dark Blue */}
+              <div className="evaluation-group-header">
+                {group.isEditing ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Input
+                      value={group.tempDescription || group.description}
+                      onChange={(e) => handleGroupDescriptionChange(group.groupID, e.target.value)}
+                      style={{ maxWidth: 400 }}
+                    />
+                    <Button size="small" type="primary" onClick={() => saveGroupDescription(group.groupID, group.tempDescription || group.description)}>Save</Button>
+                    <Button size="small" onClick={() => cancelEditingGroup(group.groupID)}>Cancel</Button>
                   </div>
-                );
-              })
-            ) : (
-              <div style={{ padding: 24, textAlign: 'center', border: '1px dashed #d9d9d9', borderRadius: 8 }}>
-                <p style={{ marginBottom: 16 }}>No subgroups under this group.</p>
-                {editing && (
-                  <Button 
-                    type="dashed" 
-                    onClick={() => addNewSubGroup(group.groupID)}
-                  >
-                    + Add First SubGroup
-                  </Button>
+                ) : (
+                  <>
+                    <span>{group.description}</span>
+                    {editing && (
+                      <div className="edit-buttons">
+                        <Button size="small" icon={<EditOutlined />} onClick={() => startEditingGroup(group.groupID)}>Edit</Button>
+                        <Button size="small" type="dashed" onClick={() => addNewSubGroup(group.groupID)}>+ Add SubGroup</Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-            )}
-          </div>
-        ))}
 
-        <div style={{ marginBottom: 24 }}>
+              {/* Rating Table */}
+              <table className="rating-table">
+                <thead>
+                  <tr>
+                    <th className="criteria-header">Criteria / Behavioral Indicators</th>
+                    {scoreChoices.map(choice => (
+                      <th key={choice.value} className="rating-col">
+                        <div className="rating-number">{choice.value}</div>
+                        <div className="rating-label-text">{choice.label}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleSubGroups.map((sub) => {
+                    const items = itemsBySubGroup[sub.subGroupID] || [];
+                    const teachingItems = getItemsByType(items, 'teaching');
+                    const nonTeachingItems = getItemsByType(items, 'non-teaching');
+                    
+                    const showTeaching = shouldShowTeachingItems(selectedEmployeeID || 0);
+                    const showNonTeaching = shouldShowNonTeachingItems(selectedEmployeeID || 0);
+                    
+                    const visibleItems = editing ? items : [
+                      ...(showTeaching ? teachingItems : []),
+                      ...(showNonTeaching ? nonTeachingItems : [])
+                    ];
+                    
+                    const isMissing = missingScores.includes(sub.subGroupID);
+                    const currentScore = scores.find(s => s.subGroupID === sub.subGroupID)?.scoreValue;
+
+                    return (
+                      <tr 
+                        key={sub.subGroupID} 
+                        id={`subgroup-${sub.subGroupID}`}
+                        className={`subgroup-row ${isMissing ? 'missing' : ''}`}
+                      >
+                        {/* SubGroup Name + Items Cell */}
+                        <td>
+                          <div className="subgroup-content">
+                            {/* SubGroup Title */}
+                            <div className="subgroup-title">
+                              {sub.isEditing ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <Input
+                                    value={sub.tempName || sub.name}
+                                    onChange={(e) => handleSubGroupNameChange(group.groupID, sub.subGroupID, e.target.value)}
+                                    style={{ width: 250 }}
+                                  />
+                                  <Button size="small" type="primary" onClick={() => saveSubGroupName(group.groupID, sub.subGroupID, sub.tempName || sub.name)}>Save</Button>
+                                  <Button size="small" onClick={() => cancelEditingSubGroup(group.groupID, sub.subGroupID)}>Cancel</Button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span>{sub.name}</span>
+                                  {selectedEmployeeID && <span className="required-star">*</span>}
+                                  {isMissing && <span className="missing-text">⚠ Please select a rating</span>}
+                                  {editing && (
+                                    <span className="edit-buttons-inline">
+                                      <Button type="link" size="small" icon={<EditOutlined />} onClick={() => startEditingSubGroup(group.groupID, sub.subGroupID)} />
+                                      <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => deleteSubGroup(group.groupID, sub.subGroupID)} />
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+
+                            {/* Items List */}
+                            {visibleItems.length > 0 ? (
+                              <ul className="items-list">
+                                {visibleItems.map((item) => (
+                                  <li key={item.itemID}>
+                                    {item.isEditing ? (
+                                      <div className="item-edit-row">
+                                        <Input
+                                          value={item.tempDescription || item.description}
+                                          onChange={(e) => handleItemDescriptionChange(sub.subGroupID, item.itemID, e.target.value)}
+                                          style={{ flex: 1 }}
+                                        />
+                                        <Button size="small" type="primary" onClick={() => saveItemDescription(sub.subGroupID, item.itemID, item.tempDescription || item.description)}>Save</Button>
+                                        <Button size="small" onClick={() => cancelEditingItem(sub.subGroupID, item.itemID)}>Cancel</Button>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {item.description}
+                                        {editing && (
+                                          <span className="edit-buttons-inline">
+                                            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => startEditingItem(sub.subGroupID, item.itemID)} />
+                                            <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => deleteItem(sub.subGroupID, item.itemID)} />
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="no-items-message">No items in this subgroup</div>
+                            )}
+
+                            {/* Add Item Buttons (Edit Mode) */}
+                            {editing && (
+                              <div className="add-buttons-container">
+                                <Button size="small" type="dashed" onClick={() => addNewItem(sub.subGroupID, 'teaching')}>
+                                  + Teaching Item
+                                </Button>
+                                {!isCoordinator && (
+                                  <Button size="small" type="dashed" onClick={() => addNewItem(sub.subGroupID, 'non-teaching')}>
+                                    + Non-Teaching Item
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Rating Cells */}
+                        {scoreChoices.map((choice) => (
+                          <td key={choice.value} className="rating-cell">
+                            <div className="rating-checkbox-wrapper">
+                              <label className="rating-checkbox">
+                                <input
+                                  type="radio"
+                                  name={`rating-${sub.subGroupID}`}
+                                  value={choice.value}
+                                  checked={currentScore === choice.value}
+                                  onChange={() => handleScoreChange(sub.subGroupID, choice.value)}
+                                  disabled={!selectedEmployeeID}
+                                />
+                                <span className="checkmark"></span>
+                              </label>
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+
+                  {visibleSubGroups.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: 20, color: '#999' }}>
+                        No subgroups in this group.
+                        {editing && (
+                          <Button type="dashed" style={{ marginLeft: 12 }} onClick={() => addNewSubGroup(group.groupID)}>
+                            + Add SubGroup
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+
+        <div style={{ marginBottom: 24, marginTop: 30 }}>
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold' }}>
             Additional Comments:
           </label>

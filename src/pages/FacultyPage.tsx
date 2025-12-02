@@ -212,7 +212,7 @@ const FacultyPage: React.FC = () => {
     const positionName = position?.positionName?.toLowerCase() || '';
     
     // Positions that should NOT have department
-    const nonDepartmentPositions = ['hr', 'admin', 'non-teaching', 'non-teacher','security', 'maintenance', 'janitor', 'cleaner', 'technician', 'custodian'];
+    const nonDepartmentPositions = ['hr', 'admin', 'non-teaching', 'school doctor','non-teacher','security', 'maintenance', 'janitor', 'cleaner', 'technician', 'custodian'];
     
     return !nonDepartmentPositions.some(nonDeptPos => 
       positionName.includes(nonDeptPos)
