@@ -130,6 +130,11 @@ const MainLayout = () => {
     const adminSubMenuItems = [
       ...evaluationItems,
       evaluatedPageItem, // Moved evaluated page item here for Admin/HR
+       {
+        key: 'pending-updates', 
+        icon: <TeamOutlined />,
+        label: 'Pending Updates',
+      },
       {
         key: "departments",
         icon: <TeamOutlined />,

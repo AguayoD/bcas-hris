@@ -20,6 +20,7 @@ import EducationalAttainmentPage from "./pages/EducationalAttainmentPage.tsx";
 import EmploymentStatusPage from "./pages/EmploymentStatusPage.tsx";
 import AuditLogPage from "./pages/AuditLogPage.tsx";
 import TransactionEventsPage from "./pages/TransactionEvent.tsx";
+import PendingUpdatesPage from "./pages/PendingUpdatesPage.tsx";
 
 function App() {
   return (
@@ -127,13 +128,22 @@ function App() {
                 <EvaluatedPage />
               </ProtectedRoute>
             } 
-          />    
+          />  
+            <Route 
+              path="/pending-updates" 
+              element={
+                <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.HR]}>
+                  <PendingUpdatesPage />
+                </ProtectedRoute>
+              } 
+            />  
                     <Route 
             path="/logs" 
             element={
               <ProtectedRoute allowedRoles={[ROLES.Admin, ROLES.Coordinator, ROLES.HR]}>
                 <TransactionEventsPage />
               </ProtectedRoute>
+              
             } 
           />    
         </Route>

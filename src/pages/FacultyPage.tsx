@@ -813,166 +813,178 @@ const FacultyPage: React.FC = () => {
       }
     };
 
-    // Updated handleSubmit with confirmation logic
-    const handleFormFinish = async (values: any) => {
-      setFormValues(values);
-      if (editingId) {
-        // Show popconfirm for updates
-        setSubmitPopconfirmVisible(true);
-      } else {
-        // Direct submit for creates
-        handleSubmit(values);
-      }
+const handleFormFinish = async (values: any) => {
+  setFormValues(values);
+  if (editingId) {
+    // Show popconfirm for updates
+    setSubmitPopconfirmVisible(true);
+  } else {
+    // Direct submit for creates
+    handleSubmit(values);
+  }
+};
+
+const handleSubmit = async (values: any) => {
+  try {
+    setLoading(true);
+
+    const positionId = Number(values.positionID);
+    const hasDepartment = shouldHaveDepartment(positionId);
+
+    const formattedValues = {
+      ...values,
+      dateOfBirth: values.dateOfBirth
+        ? dayjs(values.dateOfBirth).format("YYYY-MM-DD")
+        : undefined,
+      hireDate: values.hireDate
+        ? dayjs(values.hireDate).format("YYYY-MM-DD")
+        : undefined,
+      // Department fields - only primary is required when applicable
+      departmentID: hasDepartment ? Number(values.departmentID) : null,
+      departmentID2: hasDepartment && values.departmentID2 ? Number(values.departmentID2) : null,
+      departmentID3: hasDepartment && values.departmentID3 ? Number(values.departmentID3) : null,
+      positionID: positionId,
+      educationalAttainment: values.educationalAttainment ? Number(values.educationalAttainment) : null,
+      employmentStatus: values.employmentStatus ? Number(values.employmentStatus) : null,
+      yearGraduated: values.yearGraduated
+        ? dayjs(values.yearGraduated).format("YYYY-MM-DD")
+        : null,
+      durationStart: values.durationStart
+        ? dayjs(values.durationStart).format("YYYY-MM-DD")
+        : null,
+      durationEnd: values.durationEnd
+        ? dayjs(values.durationEnd).format("YYYY-MM-DD")
+        : null,
     };
 
-    const handleSubmit = async (values: any) => {
-      try {
-        setLoading(true);
+    if (editingId) {
+      // Check user role - Admin/HR can update directly, others submit for approval
+      if (isAdmin || isHR) {
+        // Direct update for Admin/HR
+        const updatedEmployee = await EmployeeService.update(
+          editingId,
+          formattedValues
+        );
+        setFacultyData(
+          facultyData.map((item) =>
+            item.employeeID === editingId ? updatedEmployee : item
+          )
+        );
+        // Update selected details if currently viewing this employee
+        setSelectedEmployeeDetails(prev => prev && prev.employeeID === updatedEmployee.employeeID ? updatedEmployee : prev);
 
-        const positionId = Number(values.positionID);
-        const hasDepartment = shouldHaveDepartment(positionId);
-
-        const formattedValues = {
-          ...values,
-          dateOfBirth: values.dateOfBirth
-            ? dayjs(values.dateOfBirth).format("YYYY-MM-DD")
-            : undefined,
-          hireDate: values.hireDate
-            ? dayjs(values.hireDate).format("YYYY-MM-DD")
-            : undefined,
-          // Department fields - only primary is required when applicable
-          departmentID: hasDepartment ? Number(values.departmentID) : null,
-          departmentID2: hasDepartment && values.departmentID2 ? Number(values.departmentID2) : null,
-          departmentID3: hasDepartment && values.departmentID3 ? Number(values.departmentID3) : null,
-          positionID: positionId,
-          educationalAttainment: values.educationalAttainment ? Number(values.educationalAttainment) : null,
-          employmentStatus: values.employmentStatus ? Number(values.employmentStatus) : null,
-          yearGraduated: values.yearGraduated
-            ? dayjs(values.yearGraduated).format("YYYY-MM-DD")
-            : null,
-          durationStart: values.durationStart
-            ? dayjs(values.durationStart).format("YYYY-MM-DD")
-            : null,
-          durationEnd: values.durationEnd
-            ? dayjs(values.durationEnd).format("YYYY-MM-DD")
-            : null,
-        };
-
-        if (editingId) {
-          const updatedEmployee = await EmployeeService.update(
-            editingId,
-            formattedValues
-          );
-          setFacultyData(
-            facultyData.map((item) =>
-              item.employeeID === editingId ? updatedEmployee : item
-            )
-          );
-          // If the details modal is open for this employee, update the displayed details so Basic Information reflects the change
-          // Update selected details if currently viewing this employee
-          setSelectedEmployeeDetails(prev => prev && prev.employeeID === updatedEmployee.employeeID ? updatedEmployee : prev);
-
-          // Always ensure employment history in localStorage reflects the updated basic info
-          try {
-            const storageKey = `employmentHistory_${updatedEmployee.employeeID}`;
-            const stored = localStorage.getItem(storageKey);
-            let histories: any[] = [];
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (Array.isArray(parsed)) histories = parsed;
-            }
-
-            const latestEntry = {
-              departmentID: updatedEmployee.departmentID ?? null,
-              positionID: updatedEmployee.positionID ?? null,
-              category: shouldHaveDepartment(updatedEmployee.positionID) ? 'Teaching' : 'Non-Teaching',
-              dateStarted: updatedEmployee.hireDate ?? null,
-            };
-
-            const last = histories.length ? histories[histories.length - 1] : null;
-            const changed = !last || last.departmentID !== latestEntry.departmentID || last.positionID !== latestEntry.positionID || last.dateStarted !== latestEntry.dateStarted;
-            if (changed) {
-              histories = [...histories, latestEntry];
-            }
-
-            // Persist back (even if unchanged to ensure key exists)
-            try {
-              localStorage.setItem(storageKey, JSON.stringify(histories));
-            } catch (e) {
-              console.warn('Failed to persist employment history after update', e);
-            }
-
-            // Update in-memory list if details modal is open for this employee
-            if (selectedEmployeeDetails && selectedEmployeeDetails.employeeID === updatedEmployee.employeeID) {
-              setEmploymentHistoryList(histories);
-            }
-          } catch (e) {
-            console.warn('Failed to sync employment history after update', e);
+        // Always ensure employment history in localStorage reflects the updated basic info
+        try {
+          const storageKey = `employmentHistory_${updatedEmployee.employeeID}`;
+          const stored = localStorage.getItem(storageKey);
+          let histories: any[] = [];
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) histories = parsed;
           }
-          message.success("Faculty updated successfully");
-          // No automatic employment history recording during update; manual updates are handled via the Employment History tab.
-        } else {
-          const { employeeID, ...employeeDataWithoutId } = formattedValues;
-          const newEmployee = await EmployeeService.create(employeeDataWithoutId);
-          setFacultyData([...facultyData, newEmployee]);
-          message.success("Faculty added successfully");
-          // No automatic employment history recording during create; employment history is managed manually via the Employment History tab.
+
+          const latestEntry = {
+            departmentID: updatedEmployee.departmentID ?? null,
+            positionID: updatedEmployee.positionID ?? null,
+            category: shouldHaveDepartment(updatedEmployee.positionID) ? 'Teaching' : 'Non-Teaching',
+            dateStarted: updatedEmployee.hireDate ?? null,
+          };
+
+          const last = histories.length ? histories[histories.length - 1] : null;
+          const changed = !last || last.departmentID !== latestEntry.departmentID || last.positionID !== latestEntry.positionID || last.dateStarted !== latestEntry.dateStarted;
+          if (changed) {
+            histories = [...histories, latestEntry];
+          }
+
+          // Persist back (even if unchanged to ensure key exists)
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(histories));
+          } catch (e) {
+            console.warn('Failed to persist employment history after update', e);
+          }
+
+          // Update in-memory list if details modal is open for this employee
+          if (selectedEmployeeDetails && selectedEmployeeDetails.employeeID === updatedEmployee.employeeID) {
+            setEmploymentHistoryList(histories);
+          }
+        } catch (e) {
+          console.warn('Failed to sync employment history after update', e);
         }
+        
+        message.success("Faculty updated successfully");
+      } else {
+        // Regular user: Submit update request for approval
+        
+        // Remove employeeID from update data for storage
+        const { employeeID, ...updateData } = formattedValues;
+        
+        // Get current employee data for comparison
+        const currentEmployee = facultyData.find(emp => emp.employeeID === editingId);
+        
+        if (currentEmployee) {
+          // Create original data object with only changed fields
+          const originalData: any = {};
+          Object.keys(updateData).forEach(key => {
+            if (updateData[key as keyof typeof updateData] !== undefined) {
+              originalData[key] = currentEmployee[key as keyof typeof currentEmployee];
+            }
+          });
 
-        setIsModalVisible(false);
-        setSubmitPopconfirmVisible(false);
-        form.resetFields();
-        setSelectedEmployee(null);
-        setFormValues(null);
-      } catch (err) {
-        console.error("Error in handleSubmit:", err);
-        message.error("Operation failed. Please check the form and try again.");
-        setSubmitPopconfirmVisible(false);
-      } finally {
-        setLoading(false);
+          // Submit update request to localStorage
+          EmployeeService.submitUpdateRequest(editingId, updateData, originalData);
+          
+          // Show notification to user
+          message.success({
+            content: (
+              <div>
+                <p>Update request submitted for approval.</p>
+                <p style={{ fontSize: '12px', color: '#666' }}>
+                  Your changes will be reviewed by HR/Admin. You'll be notified once approved or rejected.
+                </p>
+              </div>
+            ),
+            duration: 5,
+          });
+        }
       }
-    };
-
-    const handleConfirmUpdate = () => {
-      if (formValues) {
-        handleSubmit(formValues);
-      }
-      setSubmitPopconfirmVisible(false); // Close popconfirm immediately
-    };
-
-    const handleCancelUpdate = () => {
+      
+      // Clear form and close modal
+      setIsModalVisible(false);
       setSubmitPopconfirmVisible(false);
+      form.resetFields();
+      setSelectedEmployee(null);
       setFormValues(null);
-    };
+      
+    } else {
+      // Creating new employee - Admin/HR only (should already be checked in handleFormFinish)
+      const { employeeID, ...employeeDataWithoutId } = formattedValues;
+      const newEmployee = await EmployeeService.create(employeeDataWithoutId);
+      setFacultyData([...facultyData, newEmployee]);
+      message.success("Faculty added successfully");
+      
+      // No automatic employment history recording during create; employment history is managed manually via the Employment History tab.
+    }
 
-    const handleAddUserAccount = (record: Employee, e?: React.MouseEvent) => {
-      if (e) {
-        e.stopPropagation();
-      }
+  } catch (err) {
+    console.error("Error in handleSubmit:", err);
+    message.error("Operation failed. Please check the form and try again.");
+    setSubmitPopconfirmVisible(false);
+  } finally {
+    setLoading(false);
+  }
+};
 
-      if (!isAdmin && !isHR) {
-        message.warning("You don't have permission to create user accounts");
-        return;
-      }
+const handleConfirmUpdate = () => {
+  if (formValues) {
+    handleSubmit(formValues);
+  }
+  setSubmitPopconfirmVisible(false); // Close popconfirm immediately
+};
 
-      userForm.resetFields();
-      setSelectedEmployee(record);
-
-      userForm.setFieldsValue({
-        firstName: record.firstName,
-        middleName: record.middleName,
-        lastName: record.lastName,
-        employeeId: record.employeeID,
-        username: `${record.firstName?.toLowerCase() || ""}${
-          record.middleName?.toLowerCase() || ""
-        }${
-          record.lastName?.toLowerCase() || ""
-        }`,
-        roleId: 2, // Default to Teacher role
-      });
-
-      setIsUserModalVisible(true);
-    };
+const handleCancelUpdate = () => {
+  setSubmitPopconfirmVisible(false);
+  setFormValues(null);
+};
 
     const handleSubmitUserAccount = async () => {
     try {
@@ -2950,3 +2962,7 @@ const FacultyPage: React.FC = () => {
   };
 
   export default FacultyPage;
+
+function handleAddUserAccount(_record: Employee, _e: React.MouseEvent<HTMLElement, MouseEvent>): void {
+  throw new Error("Function not implemented.");
+}
