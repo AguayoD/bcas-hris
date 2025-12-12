@@ -823,6 +823,26 @@ const handleFormFinish = async (values: any) => {
     handleSubmit(values);
   }
 };
+const handleAddUserAccount = (record: Employee, e: React.MouseEvent<HTMLElement>) => {
+  e.stopPropagation();
+  setSelectedEmployee(record);
+  
+  // Create username from first and last name (lowercase, remove spaces)
+  const firstName = record.firstName || '';
+  const lastName = record.lastName || '';
+  const username = `${firstName.toLowerCase()}${lastName.toLowerCase()}`.replace(/\s+/g, '');
+  
+  // Pre-fill the user form with employee data
+  userForm.setFieldsValue({
+    firstName: record.firstName,
+    middleName: record.middleName,
+    lastName: record.lastName,
+    employeeId: record.employeeID,
+    username: username || '', // Use first+last name as username
+  });
+  
+  setIsUserModalVisible(true);
+};
 
 const handleSubmit = async (values: any) => {
   try {
@@ -2963,6 +2983,4 @@ const handleCancelUpdate = () => {
 
   export default FacultyPage;
 
-function handleAddUserAccount(_record: Employee, _e: React.MouseEvent<HTMLElement, MouseEvent>): void {
-  throw new Error("Function not implemented.");
-}
+

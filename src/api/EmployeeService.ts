@@ -1,16 +1,19 @@
 import axios from './_axiosInstance';
 import { Employee } from '../types/tblEmployees';
+import dayjs from 'dayjs';
 
 export interface PendingUpdate {
-  pendingUpdateID: string; // Using string ID for localStorage
+  pendingUpdateID: number;
   employeeID: number;
-  updateData: Partial<Employee>;
-  originalData: Partial<Employee>; // Store original data for comparison/rejection
+  updateData: Record<string, any>;
+  originalData: Record<string, any>;
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   reviewedAt?: string;
   reviewedBy?: number;
   reviewerName?: string;
+  comments?: string;
+  employee?: Employee;
 }
 
 export const EmployeeService = {
@@ -79,115 +82,262 @@ export const EmployeeService = {
     return response.data;
   },
 
-  // LocalStorage-based methods for pending updates
-  submitUpdateRequest(employeeID: number, updateData: Partial<Employee>, originalData: Partial<Employee>): PendingUpdate {
-    const pendingUpdates = this.getPendingUpdatesFromStorage();
-    const newUpdate: PendingUpdate = {
-      pendingUpdateID: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      employeeID,
-      updateData,
-      originalData,
-      status: 'pending',
-      submittedAt: new Date().toISOString()
-    };
+  // Server-based methods for pending updates
+  async submitUpdateRequest(employeeID: number, updateData: Partial<Employee>, _originalData: Record<string, any>): Promise<PendingUpdate> {
+    console.log('=== DEBUG: Submitting update request ===');
+    console.log('Employee ID:', employeeID);
+    console.log('Raw update data:', updateData);
     
-    pendingUpdates.push(newUpdate);
-    this.savePendingUpdatesToStorage(pendingUpdates);
-    return newUpdate;
-  },
-
-  getPendingUpdates(): PendingUpdate[] {
-    return this.getPendingUpdatesFromStorage().filter(update => update.status === 'pending');
-  },
-
-  getAllUpdates(): PendingUpdate[] {
-    return this.getPendingUpdatesFromStorage();
-  },
-
-  getPendingUpdateById(id: string): PendingUpdate | undefined {
-    const updates = this.getPendingUpdatesFromStorage();
-    return updates.find(update => update.pendingUpdateID === id);
-  },
-
-  approveUpdate(pendingUpdateID: string, reviewedBy: number, reviewerName: string): { pendingUpdate: PendingUpdate; employee: Employee | null } {
-    const updates = this.getPendingUpdatesFromStorage();
-    const updateIndex = updates.findIndex(update => update.pendingUpdateID === pendingUpdateID);
+    // Convert to dictionary format
+    const updateDict: Record<string, any> = {};
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key as keyof Employee] !== undefined && updateData[key as keyof Employee] !== null) {
+        const value = updateData[key as keyof Employee];
+        updateDict[key] = value;
+        
+        // Log date fields specifically
+        if (key.toLowerCase().includes('date') || key === 'yearGraduated' || key === 'hireDate') {
+          console.log(`Date field ${key}:`, {
+            value: value,
+            type: typeof value,
+            isDayjs: dayjs.isDayjs(value),
+            formatted: dayjs.isDayjs(value) ? dayjs(value).format('YYYY-MM-DD') : value
+          });
+        }
+      }
+    });
     
-    if (updateIndex === -1) {
-      throw new Error('Update request not found');
-    }
-
-    const updatedUpdate = {
-      ...updates[updateIndex],
-      status: 'approved' as const,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy,
-      reviewerName
-    };
-
-    updates[updateIndex] = updatedUpdate;
-    this.savePendingUpdatesToStorage(updates);
-
-    // Return the approved update data, but note: actual employee update still needs to be done via API
-    return { pendingUpdate: updatedUpdate, employee: null };
-  },
-
-  rejectUpdate(pendingUpdateID: string, reviewedBy: number, reviewerName: string): PendingUpdate {
-    const updates = this.getPendingUpdatesFromStorage();
-    const updateIndex = updates.findIndex(update => update.pendingUpdateID === pendingUpdateID);
+    console.log('Update dict to send:', updateDict);
+    console.log('Update dict keys:', Object.keys(updateDict));
     
-    if (updateIndex === -1) {
-      throw new Error('Update request not found');
-    }
-
-    const updatedUpdate = {
-      ...updates[updateIndex],
-      status: 'rejected' as const,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy,
-      reviewerName
-    };
-
-    updates[updateIndex] = updatedUpdate;
-    this.savePendingUpdatesToStorage(updates);
-
-    return updatedUpdate;
-  },
-
-  getEmployeeHistory(employeeID: number): PendingUpdate[] {
-    const updates = this.getPendingUpdatesFromStorage();
-    return updates.filter(update => update.employeeID === employeeID);
-  },
-
-  clearOldUpdates(): void {
-    // Keep only updates from the last 30 days
-    const updates = this.getPendingUpdatesFromStorage();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const filteredUpdates = updates.filter(update => 
-      new Date(update.submittedAt) > thirtyDaysAgo
-    );
-    
-    this.savePendingUpdatesToStorage(filteredUpdates);
-  },
-
-  // Helper methods for localStorage
-  getPendingUpdatesFromStorage(): PendingUpdate[] {
     try {
-      const stored = localStorage.getItem('pending_employee_updates');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Error reading pending updates from localStorage:', error);
-      return [];
+      const response = await axios.post('/PendingEmployeeUpdates', {
+        employeeId: employeeID,
+        updateData: updateDict
+      });
+      console.log('Submit response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error submitting update:', error);
+      console.error('Error response:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || error.response?.data?.details || "No changes detected";
+        if (errorMessage.includes("No changes detected")) {
+          throw new Error("No changes detected. The values you entered are the same as the current values.");
+        }
+        throw new Error(errorMessage);
+      } else if (error.response?.status === 404) {
+        throw new Error("Employee not found. Please refresh the page and try again.");
+      } else if (error.response?.status === 500) {
+        throw new Error("Server error. Please try again later.");
+      }
+      
+      throw error;
     }
   },
 
-  savePendingUpdatesToStorage(updates: PendingUpdate[]): void {
+  async getPendingUpdates(): Promise<PendingUpdate[]> {
     try {
-      localStorage.setItem('pending_employee_updates', JSON.stringify(updates));
+      const response = await axios.get('/PendingEmployeeUpdates/pending');
+      return response.data;
     } catch (error) {
-      console.error('Error saving pending updates to localStorage:', error);
+      console.error('Error fetching pending updates:', error);
+      throw error;
+    }
+  },
+
+  async getAllUpdates(): Promise<PendingUpdate[]> {
+    try {
+      const response = await axios.get('/PendingEmployeeUpdates');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching all updates:', error);
+      throw error;
+    }
+  },
+
+  async getPendingUpdateById(id: number): Promise<PendingUpdate> {
+    try {
+      const response = await axios.get(`/PendingEmployeeUpdates/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching pending update by ID:', error);
+      throw error;
+    }
+  },
+
+  async getEmployeeHistory(employeeID: number): Promise<PendingUpdate[]> {
+    try {
+      const response = await axios.get(`/PendingEmployeeUpdates/employee/${employeeID}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching employee history:', error);
+      throw error;
+    }
+  },
+
+  async approveUpdate(pendingUpdateID: number, comments?: string): Promise<PendingUpdate> {
+    try {
+      console.log('=== DEBUG: Approving update ===');
+      console.log('PendingUpdateID:', pendingUpdateID);
+      console.log('Comments:', comments);
+      
+      const response = await axios.post(`/PendingEmployeeUpdates/${pendingUpdateID}/approve`, {
+        comments: comments || "Approved by reviewer"
+      });
+      
+      console.log('Approve response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error approving update:', error);
+      console.error('Error response:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        throw new Error(error.response?.data || "Invalid request. Please check the update ID.");
+      } else if (error.response?.status === 404) {
+        throw new Error("Update request not found. It may have been already processed.");
+      } else if (error.response?.status === 500) {
+        throw new Error("Server error while approving update. Please try again.");
+      }
+      
+      throw error;
+    }
+  },
+
+  async rejectUpdate(pendingUpdateID: number, comments?: string): Promise<PendingUpdate> {
+    try {
+      const response = await axios.post(`/PendingEmployeeUpdates/${pendingUpdateID}/reject`, {
+        comments: comments || "Rejected by reviewer"
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error rejecting update:', error);
+      
+      if (error.response?.status === 400) {
+        throw new Error(error.response?.data || "Invalid request. Please check the update ID.");
+      } else if (error.response?.status === 404) {
+        throw new Error("Update request not found. It may have been already processed.");
+      } else if (error.response?.status === 500) {
+        throw new Error("Server error while rejecting update. Please try again.");
+      }
+      
+      throw error;
+    }
+  },
+
+  async cleanupOldUpdates(): Promise<void> {
+    try {
+      await axios.delete('/PendingEmployeeUpdates/cleanup');
+    } catch (error) {
+      console.error('Error cleaning up old updates:', error);
+      throw error;
+    }
+  },
+
+  // Helper method to check if there are actual changes
+  async hasChanges(employeeID: number, updateData: Partial<Employee>): Promise<boolean> {
+    try {
+      const currentEmployee = await this.getById(employeeID);
+      
+      // Compare each field
+      for (const key in updateData) {
+        const newValue = updateData[key as keyof Employee];
+        const currentValue = currentEmployee[key as keyof Employee];
+        
+        // Skip if both are null/undefined
+        if (newValue == null && currentValue == null) continue;
+        
+        // If one is null/undefined and the other isn't, there's a change
+        if (newValue == null || currentValue == null) return true;
+        
+        // Convert to string for comparison
+        const newString = newValue.toString().trim();
+        const currentString = currentValue.toString().trim();
+        
+        // For dates, compare in YYYY-MM-DD format
+        if (key.includes('Date') || key.includes('date') || key === 'yearGraduated' || key === 'hireDate') {
+          try {
+            const newDate = dayjs(newString).format('YYYY-MM-DD');
+            const currentDate = dayjs(currentString).format('YYYY-MM-DD');
+            if (newDate !== currentDate) return true;
+          } catch {
+            // If date parsing fails, do string comparison
+            if (newString !== currentString) return true;
+          }
+        } else {
+          // Regular string comparison
+          if (newString !== currentString) return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking for changes:', error);
+      return true; // Assume there are changes if we can't check
+    }
+  },
+
+  // Method to prepare update data (filters out unchanged fields)
+  async prepareUpdateData(employeeID: number, updateData: Partial<Employee>): Promise<Partial<Employee>> {
+    try {
+      const currentEmployee = await this.getById(employeeID);
+      const preparedData: Partial<Employee> = {};
+      
+      for (const key in updateData) {
+        const newValue = updateData[key as keyof Employee];
+        const currentValue = currentEmployee[key as keyof Employee];
+        
+        // Skip if both are null/undefined
+        if (newValue == null && currentValue == null) continue;
+        
+        // If one is null/undefined and the other isn't, include it
+        if (newValue == null || currentValue == null) {
+          preparedData[key as keyof Employee] = newValue as any;
+          continue;
+        }
+        
+        // Convert to string for comparison
+        const newString = newValue.toString().trim();
+        const currentString = currentValue.toString().trim();
+        
+        // For dates, compare in YYYY-MM-DD format
+        let isDifferent = false;
+        if (key.includes('Date') || key.includes('date') || key === 'yearGraduated' || key === 'hireDate') {
+          try {
+            const newDate = dayjs(newString).format('YYYY-MM-DD');
+            const currentDate = dayjs(currentString).format('YYYY-MM-DD');
+            isDifferent = newDate !== currentDate;
+          } catch {
+            // If date parsing fails, do string comparison
+            isDifferent = newString !== currentString;
+          }
+        } else {
+          // Regular string comparison
+          isDifferent = newString !== currentString;
+        }
+        
+        if (isDifferent) {
+          preparedData[key as keyof Employee] = newValue as any;
+        }
+      }
+      
+      console.log('Prepared update data (filtered):', preparedData);
+      return preparedData;
+    } catch (error) {
+      console.error('Error preparing update data:', error);
+      return updateData; // Return original if we can't filter
+    }
+  },
+
+  // Debug method to check employee data
+  async debugEmployee(id: number): Promise<any> {
+    try {
+      const response = await axios.get(`/PendingEmployeeUpdates/debug/employee/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error debugging employee:', error);
+      throw error;
     }
   }
 };

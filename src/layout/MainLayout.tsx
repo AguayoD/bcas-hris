@@ -1,4 +1,4 @@
-import { Layout, Menu, Button } from "antd";
+import { Layout, Menu, Button, Badge } from "antd";
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -9,6 +9,7 @@ import {
   FolderOutlined,
   BookOutlined,
   SettingOutlined,
+  BellOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
@@ -23,6 +24,7 @@ const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingUpdatesCount, setPendingUpdatesCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -44,6 +46,29 @@ const MainLayout = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Fetch pending updates count for Admin/HR
+  useEffect(() => {
+    if (isAdmin || isHR) {
+      fetchPendingUpdatesCount();
+      // Set up interval to refresh the count every 30 seconds
+      const intervalId = setInterval(fetchPendingUpdatesCount, 30000);
+      return () => clearInterval(intervalId);
+    }
+  }, [isAdmin, isHR]);
+
+  const fetchPendingUpdatesCount = async () => {
+    try {
+      // Import the EmployeeService dynamically to avoid circular dependencies
+      const { EmployeeService } = await import("../api/EmployeeService");
+      const updates = await EmployeeService.getAllUpdates();
+      const pendingCount = updates.filter(update => update.status === 'pending').length;
+      setPendingUpdatesCount(pendingCount);
+    } catch (error) {
+      console.error("Error fetching pending updates count:", error);
+      setPendingUpdatesCount(0);
+    }
+  };
 
   const getActiveKey = () => {
     const path = location.pathname.split("/")[1] || "dashboard";
@@ -75,7 +100,7 @@ const MainLayout = () => {
   type MenuItem = {
     key: string;
     icon: React.ReactNode;
-    label: string;
+    label: React.ReactNode; // Changed to React.ReactNode to support Badge
     children?: MenuItem[];
   };
 
@@ -130,11 +155,6 @@ const MainLayout = () => {
     const adminSubMenuItems = [
       ...evaluationItems,
       evaluatedPageItem, // Moved evaluated page item here for Admin/HR
-       {
-        key: 'pending-updates', 
-        icon: <TeamOutlined />,
-        label: 'Pending Updates',
-      },
       {
         key: "departments",
         icon: <TeamOutlined />,
@@ -188,6 +208,33 @@ const MainLayout = () => {
     
     // Add employees menu item
     menuItems.push(employeesMenuItem);
+    
+    // Add Pending Updates ONLY for Admin/HR (as separate menu item)
+    if (isAdmin || isHR) {
+      menuItems.push({
+        key: 'pending-updates', 
+        icon: <BellOutlined />,
+        label: (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Pending Updates</span>
+            {pendingUpdatesCount > 0 && (
+              <Badge 
+                count={pendingUpdatesCount} 
+                size="small" 
+                style={{ 
+                  backgroundColor: '#fa8c16',
+                  marginLeft: '8px',
+                  fontSize: '10px',
+                  height: '16px',
+                  minWidth: '16px',
+                  lineHeight: '16px'
+                }} 
+              />
+            )}
+          </div>
+        ),
+      });
+    }
     
     // Add evaluation items directly for coordinator (not for admin/HR as they're in submenu)
     if (isCoordinator) {
@@ -276,11 +323,28 @@ const MainLayout = () => {
       <Layout className="main-content">
         <Header style={{ padding: 0, background: "#fff", textAlign: "center" }}>
           <h3 style={{ margin: 0, padding: 16 }}>
-            Welcome to BCAS HRMS
+            Welcome to BCAS HRIS
             {user && (
               <span style={{ fontSize: '14px', fontWeight: 'normal', marginLeft: '10px' }}>
                 - {user.firstName} {user.lastName}
               </span>
+            )}
+            {/* Show pending updates count in header for Admin/HR */}
+            {(isAdmin || isHR) && pendingUpdatesCount > 0 && (
+              <Badge 
+                count={pendingUpdatesCount} 
+                size="small" 
+                style={{ 
+                  backgroundColor: '#fa8c16',
+                  marginLeft: '10px',
+                  fontSize: '12px',
+                  height: '18px',
+                  minWidth: '18px',
+                  lineHeight: '18px',
+                  verticalAlign: 'middle'
+                }}
+                title={`${pendingUpdatesCount} pending update(s)`}
+              />
             )}
           </h3>
         </Header>
