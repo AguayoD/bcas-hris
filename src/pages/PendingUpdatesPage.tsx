@@ -757,27 +757,6 @@ const handleApprove = async (pendingUpdateID: number) => {
               );
             })()}
 
-            {!isMobile && (
-              <>
-                <Divider orientation="left">Debug Info</Divider>
-                <Card size="small" style={{ backgroundColor: '#fafafa', marginBottom: '16px' }}>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Update Data Keys: {Object.keys(selectedUpdate.updateData || {}).join(', ')}
-                    <br />
-                    Original Data Keys: {Object.keys(selectedUpdate.originalData || {}).join(', ')}
-                    <br />
-                    Changed Fields: {(() => {
-                      const updateData = selectedUpdate.updateData || {};
-                      const originalData = selectedUpdate.originalData || {};
-                      return Object.keys(updateData).filter(field => {
-                        return JSON.stringify(updateData[field]) !== JSON.stringify(originalData[field]);
-                      }).join(', ');
-                    })()}
-                  </Text>
-                </Card>
-              </>
-            )}
-
             <Divider orientation="left">Change Comparison</Divider>
             {(() => {
               const updateData = selectedUpdate.updateData || {};
